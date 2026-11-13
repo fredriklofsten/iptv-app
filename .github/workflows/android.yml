@@ -21,6 +21,11 @@ jobs:
           distribution: temurin
           java-version: 21
       - run: npm ci
+      - name: Versionsnummer och nyheter
+        id: ver
+        run: |
+          echo "window.APP_BUILD = ${{ github.run_number }};" > www/version.js
+          echo "msg=$(git log -1 --pretty=%s)" >> "$GITHUB_OUTPUT"
       - run: npx cap sync android
       - name: Bygg APK
         working-directory: android
@@ -33,6 +38,9 @@ jobs:
         with:
           tag_name: v${{ github.run_number }}
           name: IPTV-spelare version ${{ github.run_number }}
-          body: Ladda ner IPTV-spelare.apk på telefonen eller TV-boxen och installera den.
+          body: |
+            Nytt: ${{ steps.ver.outputs.msg }}
+
+            Ladda ner IPTV-spelare.apk på telefonen eller TV-boxen och installera den över den gamla.
           files: IPTV-spelare.apk
           make_latest: true
