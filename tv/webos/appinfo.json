@@ -1,0 +1,13 @@
+{
+  "id": "se.fredriklofsten.iptv",
+  "version": "__VERSION__",
+  "vendor": "Fredrik Löfsten",
+  "type": "web",
+  "main": "index.html",
+  "title": "IPTV-spelare",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "resolution": "1920x1080",
+  "disableBackHistoryAPI": true,
+  "uiRevision": 2
+}

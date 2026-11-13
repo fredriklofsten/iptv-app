@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   build:
@@ -27,12 +29,34 @@ jobs:
           echo "window.APP_BUILD = ${{ github.run_number }};" > www/version.js
           echo "msg=$(git log -1 --pretty=%s)" >> "$GITHUB_OUTPUT"
       - run: npx cap sync android
+      - name: Signeringsnyckel från hemlighet (om den finns)
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+          fi
       - name: Bygg APK
         working-directory: android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
+          [ -z "$KEYSTORE_PASSWORD" ] && unset KEYSTORE_PASSWORD
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
           cp app/build/outputs/apk/debug/app-debug.apk ../IPTV-spelare.apk
+      - name: Bygg LG- och Samsung-paket
+        run: |
+          V="1.0.${{ github.run_number }}"
+          mkdir -p tvbuild/webos tvbuild/tizen
+          cp -r www/* tvbuild/webos/ && cp tv/webos/* tvbuild/webos/
+          sed -i "s/__VERSION__/$V/" tvbuild/webos/appinfo.json
+          npx -y -p @webos-tools/cli ares-package tvbuild/webos -o .
+          mv se.fredriklofsten.iptv_*_all.ipk IPTV-spelare-LG.ipk
+          cp -r www/* tvbuild/tizen/ && cp tv/tizen/* tvbuild/tizen/
+          sed -i "s/__VERSION__/$V/" tvbuild/tizen/config.xml
+          (cd tvbuild/tizen && zip -qr ../../IPTV-spelare-Samsung-osignerad.wgt .)
       - name: Publicera nedladdning
         uses: softprops/action-gh-release@v2
         with:
@@ -42,5 +66,24 @@ jobs:
             Nytt: ${{ steps.ver.outputs.msg }}
 
             Ladda ner IPTV-spelare.apk på telefonen eller TV-boxen och installera den över den gamla.
-          files: IPTV-spelare.apk
+            LG: IPTV-spelare-LG.ipk · Samsung: IPTV-spelare-Samsung-osignerad.wgt (se README för installation).
+          files: |
+            IPTV-spelare.apk
+            IPTV-spelare-LG.ipk
+            IPTV-spelare-Samsung-osignerad.wgt
           make_latest: true
+      - name: Webbversion till GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: www
+
+  pages:
+    needs: build
+    runs-on: ubuntu-latest
+    continue-on-error: true   # kräver att Pages är påslaget i repots inställningar
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

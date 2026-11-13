@@ -272,6 +272,7 @@
     <button class="f iconbtn hidden" type="button" id="pRestart">↺ Börja om</button>
     <button class="f iconbtn hidden" type="button" id="pTracks" title="Ljud och undertexter">🎧 Ljud/Text</button>
     <button class="f iconbtn hidden" type="button" id="pExt" title="Öppna i annan spelare">↗ Annan spelare</button>
+    <button class="f iconbtn hidden" type="button" id="pChromecast" title="Chromecast">📡 Chromecast</button>
     <button class="f iconbtn hidden" type="button" id="pCast" title="Spela på TV">📺 Casta</button>
     <button class="f iconbtn" type="button" id="pFav" title="Min lista">☆</button>
     <button class="f iconbtn" type="button" id="fullBtn" title="Helskärm">⛶</button>
@@ -494,6 +495,8 @@ if (!window.supabase) {
   throw new Error('supabase-js laddades inte');
 }
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const WEB_URL = 'https://fredriklofsten.github.io/iptv-app/';
+if (/type=signup|#bekraftad/.test(location.hash)) setTimeout(() => { const m = $('loginMsg'); if (m) msg(m, '✅ Kontot är bekräftat! Logga in i appen på telefonen eller TV:n.'); }, 300);
 const IS_TV = /Web0S|webOS|Tizen|SMART-TV|SmartTV|Android TV|AFT[A-Z]|BRAVIA|GoogleTV|CrKey/i.test(navigator.userAgent) || location.hash === '#tv';
 if (IS_TV) document.body.classList.add('tv');
 
@@ -521,7 +524,7 @@ $('signupBtn').onclick = async () => {
   const email = $('email').value.trim(), password = $('password').value;
   if (!email || password.length < 6) return msg($('loginMsg'), 'Fyll i e-post och ett lösenord på minst 6 tecken.', true);
   msg($('loginMsg'), 'Skapar konto…');
-  const { data, error } = await sb.auth.signUp({ email, password });
+  const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: WEB_URL + '#bekraftad' } });
   if (error) return msg($('loginMsg'), error.message, true);
   if (!data.session) msg($('loginMsg'), 'Klart! Klicka på länken i mejlet vi skickade och logga sedan in här.');
 };
@@ -1153,7 +1156,13 @@ function goBack(){
 }
 function backOrExit(){
   if (goBack()) return;
-  if (Date.now() - exitArmed < 2500) { try { Capacitor.Plugins.App.exitApp(); } catch(_) {} return; }
+  if (!NATIVE && !IS_TV) return;
+  if (Date.now() - exitArmed < 2500) {
+    try { if (NATIVE) return Capacitor.Plugins.App.exitApp(); } catch(_) {}
+    try { return tizen.application.getCurrentApplication().exit(); } catch(_) {}
+    try { window.close(); } catch(_) {}
+    return;
+  }
   exitArmed = Date.now();
   status('Tryck tillbaka igen för att stänga appen'); setTimeout(() => status(''), 2500);
 }
@@ -1852,6 +1861,33 @@ $('adultBtn').onclick = () => {
   sync.pin ? askPin('Visa vuxeninnehåll', open) : open();
 };
 
+
+// ====== CHROMECAST (webbversionen i Chrome) ======
+let castReady = false;
+window.__onGCastApiAvailable = ok => {
+  if (!ok || !window.cast?.framework) return;
+  cast.framework.CastContext.getInstance().setOptions({ receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID, autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED });
+  castReady = true; $('pChromecast').classList.remove('hidden');
+};
+if (!NATIVE && !IS_TV && /Chrome/.test(navigator.userAgent) && location.protocol === 'https:') {
+  const sc = document.createElement('script'); sc.src = 'https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1'; document.head.appendChild(sc);
+}
+$('pChromecast').onclick = async () => {
+  if (!castReady || !nowItem) return;
+  const ctx = cast.framework.CastContext.getInstance();
+  try {
+    await ctx.requestSession();
+    const u = nowItem.url.toLowerCase().split('?')[0];
+    const type = /\.m3u8$/.test(u) ? 'application/x-mpegURL' : /\.ts$/.test(u) || TYPE(nowItem) === 'live' ? 'video/mp2t' : /\.mkv$/.test(u) ? 'video/x-matroska' : 'video/mp4';
+    const info = new chrome.cast.media.MediaInfo(nowItem.url, type);
+    info.metadata = new chrome.cast.media.GenericMediaMetadata(); info.metadata.title = nowItem.name;
+    info.streamType = TYPE(nowItem) === 'live' ? chrome.cast.media.StreamType.LIVE : chrome.cast.media.StreamType.BUFFERED;
+    const req = new chrome.cast.media.LoadRequest(info); req.currentTime = TYPE(nowItem) === 'live' ? 0 : video.currentTime || 0;
+    await ctx.getCurrentSession().loadMedia(req);
+    video.pause(); status('📡 Spelas på ' + ctx.getCurrentSession().getCastDevice().friendlyName);
+  } catch (e) { if (e !== 'cancel') status('Chromecast kunde inte spela den här strömmen. Servern kan blockera det.', true); }
+};
+
 // ====== SPELA PÅ TV (casta till din egen app på TV:n) ======
 const deviceId = store.get('iptv_dev', null) || (() => { const id = randomSecret().slice(0, 12); store.set('iptv_dev', id); return id; })();
 function deviceName(){
@@ -1942,6 +1978,7 @@ async function checkUpdate(){
     if (store.get('iptv_upd_skip', 0) === latest && !IS_TV) return; // "Senare" gäller tills nästa version
     $('updTitle').textContent = `Ny version finns (version ${latest})`;
     $('updNotes').textContent = (r.body || '').split('\n').find(l => l.trim()) || '';
+    if (/Web0S|webOS|Tizen/i.test(navigator.userAgent)) { $('updNotes').textContent = 'Installera den nya versionen från datorn (se instruktionen på GitHub).'; $('updGo').classList.add('hidden'); }
     $('updBar').classList.remove('hidden');
     $('updLater').onclick = () => { store.set('iptv_upd_skip', latest); $('updBar').classList.add('hidden'); };
   } catch(_) {}
@@ -2008,7 +2045,7 @@ document.addEventListener('keydown', e => {
     if (k === 8 && typing) return;
     e.preventDefault();
     if (NATIVE) return; // i Android-appen sköts tillbaka av backButton ovan
-    goBack();
+    backOrExit();
     return;
   }
   if (inPlayer) {
