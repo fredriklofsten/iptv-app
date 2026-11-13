@@ -142,6 +142,8 @@
   #now{flex:1;font-weight:700;font-size:1.1em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #pstatus{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.6);padding:.6em 1em;border-radius:8px}
   #pstatus:empty{display:none}
+  .nextup{position:absolute;right:3%;bottom:90px;background:rgba(20,21,27,.95);border:1px solid #333;border-radius:10px;padding:16px;width:min(360px,90%);display:flex;flex-direction:column;gap:8px;z-index:3}
+  .nextup .ntitle{font-weight:700;font-size:1.1em}
   .tvhint{position:absolute;bottom:70px;left:0;right:0;text-align:center;font-size:.8em;color:#aaa;transition:opacity .3s}
   .player.idle .tvhint{opacity:0}
 
@@ -244,11 +246,17 @@
     <div id="now"></div>
     <button class="f iconbtn" type="button" id="prevBtn" title="Föregående kanal">▲ Kanal</button>
     <button class="f iconbtn" type="button" id="nextBtn" title="Nästa kanal">▼ Kanal</button>
+    <button class="f iconbtn hidden" type="button" id="pRestart">↺ Börja om</button>
     <button class="f iconbtn hidden" type="button" id="pCast" title="Spela på TV">📺 Casta</button>
     <button class="f iconbtn" type="button" id="pFav" title="Min lista">☆</button>
     <button class="f iconbtn" type="button" id="fullBtn" title="Helskärm">⛶</button>
   </div>
   <div id="pstatus"></div>
+  <div id="nextUp" class="nextup hidden">
+    <div class="msg">Nästa avsnitt om <b id="nextCount">10</b> s</div>
+    <div id="nextTitle" class="ntitle"></div>
+    <div class="row"><button class="f play" type="button" id="nextGo">▶ Spela nu</button><button class="f ghost" type="button" id="nextCancel">Avbryt</button></div>
+  </div>
   <div class="tvhint" id="tvHint"></div>
 </div>
 
@@ -339,6 +347,7 @@
     <div class="msg">Spellista</div>
     <select class="f" id="plSelect"></select>
     <button class="f ghost" type="button" id="plManageBtn">Hantera spellistor</button>
+    <button class="f ghost" type="button" id="plRefresh">↻ Uppdatera listan nu</button>
     <button class="f ghost" type="button" id="pairBtn">Koppla TV</button>
     <button class="f ghost" type="button" id="logoutBtn">Logga ut</button>
     <button class="f ghost" type="button" id="logoutBtn">Logga ut</button>
@@ -535,31 +544,66 @@ function renderPlSelect(){
     : '<option value="">Inga spellistor</option>';
 }
 
-async function loadPlaylist(id, resume){
-  const p = playlists.find(x => x.id === id); if (!p) return;
-  status('Läser in ' + p.name + '…');
+// Lokal lagring av hela listan så att appen startar direkt
+const idb = {
+  _db: null,
+  open(){ return this._db || (this._db = new Promise((res, rej) => {
+    const r = indexedDB.open('iptv', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('lists');
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  })); },
+  async get(k){ try { const db = await this.open(); return await new Promise(res => { const q = db.transaction('lists').objectStore('lists').get(k); q.onsuccess = () => res(q.result); q.onerror = () => res(null); }); } catch(_) { return null; } },
+  async set(k, v){ try { const db = await this.open(); await new Promise(res => { const t = db.transaction('lists', 'readwrite'); t.objectStore('lists').put(v, k); t.oncomplete = res; t.onerror = res; }); } catch(_) {} }
+};
+const CACHE_MAX_AGE = 6 * 3600e3;
+const listKey = p => p.url || ('fil:' + (p.content || '').length);
+const strip = c => { const { genres, sport, sicon, when, title, _fallback, ...rest } = c; return rest; };
+
+async function fetchList(p){
   const xt = parseXtream(p.url) || xtFromGetPhp(p.url);
-  if (xt) {
-    curXt = xt;
-    try { channels = await loadXtream(xt); }
-    catch (e) { status('Kunde inte hämta kanaler från leverantören (' + e.message + '). Kontrollera server, användarnamn och lösenord.', true); channels = []; setGroups(); render(); return; }
-  } else {
-    let text = p.content;
-    if (!text && p.url) {
-      try { text = await httpText(p.url); }
-      catch (e) { status('Kunde inte hämta spellistan (' + e.message + '). Servern kan blockera webbläsare – ladda upp filen i stället.', true); channels = []; render(); return; }
-    }
-    curXt = null;
-    channels = parseM3U(text || '');
-  }
-  setGroups(); render();
+  if (xt) return loadXtream(xt);
+  let text = p.content;
+  if (!text && p.url) text = await httpText(p.url);
+  return parseM3U(text || '');
+}
+function applyList(id, list, resume){
+  channels = list; setGroups(); render();
   status(''); $('main').scrollTop = 0;
+  if (resume && settings.last_channel_url) { const i = channels.findIndex(c => c.url === settings.last_channel_url); if (i > -1) current = i; }
+}
+async function loadPlaylist(id, resume, force){
+  const p = playlists.find(x => x.id === id); if (!p) return;
+  curXt = parseXtream(p.url) || xtFromGetPhp(p.url);
   saveSettings({ last_playlist_id: id });
-  if (resume && settings.last_channel_url) {
-    const i = channels.findIndex(c => c.url === settings.last_channel_url);
-    if (i > -1) current = i;
+  const cached = force ? null : await idb.get(id);
+  if (cached && cached.key === listKey(p) && cached.list?.length) {
+    applyList(id, cached.list, resume);
+    if (Date.now() - cached.ts > CACHE_MAX_AGE) refreshInBackground(p, id);
+    return;
+  }
+  status('Läser in ' + p.name + '… (första gången kan ta en stund)');
+  try {
+    const list = await fetchList(p);
+    applyList(id, list, resume);
+    idb.set(id, { key: listKey(p), ts: Date.now(), list: list.map(strip) });
+  } catch (e) {
+    status((curXt ? 'Kunde inte hämta kanaler från leverantören' : 'Kunde inte hämta spellistan') + ' (' + e.message + ').', true);
+    channels = []; setGroups(); render();
   }
 }
+async function refreshInBackground(p, id){
+  try {
+    const list = await fetchList(p);
+    await idb.set(id, { key: listKey(p), ts: Date.now(), list: list.map(strip) });
+    if ($('plSelect').value !== id || !list.length) return;
+    // Byt bara ut listan om användaren inte tittar på något just nu
+    if (!$('player').classList.contains('hidden') || openDialogEl()) return;
+    const y = $('main').scrollTop, f = document.activeElement?.dataset?.i;
+    channels = list; setGroups(); renderView(); $('main').scrollTop = y;
+    if (f !== undefined) document.querySelector(`.card[data-i="${f}"]`)?.focus();
+  } catch(_) {}
+}
+$('plRefresh').onclick = () => { closeDialogs(); loadPlaylist($('plSelect').value, false, true); };
 $('plSelect').onchange = () => { stop(); current = -1; closeDialogs(); view = 'home'; loadPlaylist($('plSelect').value); };
 
 let saveTimer = null, pending = {};
@@ -783,6 +827,18 @@ const SORTS = {
 const store = { get(k, d){ try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch(_) { return d; } },
                 set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(_) {} } };
 let hist = store.get('iptv_hist', {});
+let pos = store.get('iptv_pos', {}), done = store.get('iptv_done', {});
+function trimMap(m, n){ const k = Object.keys(m); if (k.length > n) k.sort((a, b) => (m[a].at || m[a]) - (m[b].at || m[b])).slice(0, k.length - n).forEach(x => delete m[x]); }
+function savePos(c){
+  if (!c || TYPE(c) === 'live' || !video.duration || !isFinite(video.duration)) return;
+  const t = video.currentTime, d = video.duration;
+  if (d - t < Math.max(60, d * 0.05)) { delete pos[c.url]; done[c.url] = Date.now(); trimMap(done, 2000); store.set('iptv_done', done); }
+  else if (t > 30) pos[c.url] = { t, d, at: Date.now() };
+  trimMap(pos, 500); store.set('iptv_pos', pos);
+  if (c.parent) { hist[c.parent.url] = Date.now(); store.set('iptv_hist', hist); }
+}
+const progress = c => { const q = pos[c.url]; return q ? Math.min(100, Math.round(q.t / q.d * 100)) : 0; };
+const fmtTime = t => { t = Math.floor(t); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); };
 function remember(c){ hist[c.url] = Date.now(); store.set('iptv_hist', hist); }
 
 const TYPE = c => c.type || 'live';
@@ -839,7 +895,7 @@ function card(c){
     ${live && c.num ? `<span class="num">${c.num}</span>` : ''}
     ${!live && c.rating ? `<span class="badge">★ ${fmtRating(c.rating)}</span>` : ''}
     <span class="ctitle">${esc(c.name)}</span>
-    ${!live && hist[c.url] ? '<span class="seen"></span>' : ''}
+    ${!live && (progress(c) || done[c.url]) ? `<span class="seen" style="width:${done[c.url] && !progress(c) ? 100 : progress(c)}%"></span>` : ''}
   </button>`;
 }
 function row(title, items, more){
@@ -887,7 +943,7 @@ function renderView(){
 
 function homeView(){
   const m = byType.movie, s = byType.series, l = byType.live;
-  const watched = sortList([...m, ...s].filter(c => hist[c.url]), 'recent');
+  const watched = sortList([...m.filter(c => pos[c.url]), ...s.filter(c => hist[c.url])], 'recent');
   const watchedLive = sortList(l.filter(c => hist[c.url]), 'recent');
   const favList = channels.filter(c => favs.has(c.url));
   let html = hero(pickHero([...m, ...s]));
@@ -1220,7 +1276,7 @@ function openDetail(c){
   updateFavBtns();
   const isSeries = !!(c.seriesId && curXt);
   $('dSeries').classList.toggle('hidden', !isSeries);
-  $('dPlay').textContent = isSeries ? '▶ Spela avsnitt 1' : (hist[c.url] ? '▶ Spela igen' : '▶ Spela');
+  $('dPlay').textContent = isSeries ? '▶ Spela avsnitt 1' : moviePlayLabel(c);
   openDialog('detail');
   setTimeout(() => $('dPlay').focus(), 60);
   if (isSeries) loadSeries(c);
@@ -1258,9 +1314,9 @@ async function loadSeries(c){
     $('serSeason').innerHTML = seasons.map(n => `<option value="${n}">Säsong ${n} (${eps[n].length} avsnitt)</option>`).join('');
     // Fortsätt där du var: första osedda avsnittet
     let next = null;
-    for (const n of seasons) { const e = eps[n].find(ep => !hist[epUrl(ep)]); if (e) { next = [n, e]; break; } }
+    for (const n of seasons) { const e = eps[n].find(ep => !done[epUrl(ep)]); if (e) { next = [n, e]; break; } }
     if (next) $('serSeason').value = next[0];
-    $('dPlay').textContent = next ? `▶ Spela S${next[0]} A${next[1].episode_num || 1}` : '▶ Spela från början';
+    $('dPlay').textContent = next ? `▶ ${pos[epUrl(next[1])] ? 'Fortsätt' : 'Spela'} S${next[0]} A${next[1].episode_num || 1}` : '▶ Spela från början';
     msg($('serMsg'), '');
     renderEpisodes();
   } catch (e) { msg($('serMsg'), 'Kunde inte hämta avsnitt (' + e.message + ').', true); }
@@ -1268,18 +1324,47 @@ async function loadSeries(c){
 function renderEpisodes(){
   const list = (serData?.episodes || {})[$('serSeason').value] || [];
   $('serEps').innerHTML = list.map((ep, i) => `<button class="f" type="button" data-ep="${i}">
-    <span class="epn">${hist[epUrl(ep)] ? '✓' : ep.episode_num || i + 1}</span>${esc(ep.title || 'Avsnitt ' + (i + 1))}</button>`).join('');
+    <span class="epn">${done[epUrl(ep)] ? '✓' : ep.episode_num || i + 1}</span>${esc(ep.title || 'Avsnitt ' + (i + 1))}${pos[epUrl(ep)] ? ` <small style="color:#e5a00d">· ${progress({ url: epUrl(ep) })} % sett</small>` : ''}</button>`).join('');
 }
 function epUrl(ep){
   return `${curXt.s}/series/${encodeURIComponent(curXt.u)}/${encodeURIComponent(curXt.p)}/${ep.id}.${ep.container_extension || 'mp4'}`;
 }
+let epCtx = null, nextTimer = null;
 function playEpisode(season, i){
   const ep = serData.episodes[season][i];
+  epCtx = { serItem, serData, season, i };
   const item = { name: `${serItem.name} · S${season} A${ep.episode_num || i + 1} ${ep.title || ''}`, url: epUrl(ep), type: 'movie', parent: serItem };
   remember(serItem); remember(item);
   if (pendingCast) { closeDialogs(); castTo(item); return; }
-  closeDialogs(); openPlayer(item); startStream(item);
+  closeDialogs(); hideNext(); openPlayer(item); startStream(item);
 }
+function nextEpisodeOf(ctx){
+  const eps = ctx.serData.episodes, seasons = Object.keys(eps).sort((a, b) => a - b);
+  if (eps[ctx.season][ctx.i + 1]) return [ctx.season, ctx.i + 1];
+  const ns = seasons[seasons.indexOf(ctx.season) + 1];
+  return ns && eps[ns].length ? [ns, 0] : null;
+}
+function checkNextEpisode(){
+  if (!epCtx || !video.duration || !isFinite(video.duration) || !$('nextUp').classList.contains('hidden') || epCtx.dismissed) return;
+  if (video.duration - video.currentTime > 25) return;
+  const n = nextEpisodeOf(epCtx); if (!n) return;
+  const ep = epCtx.serData.episodes[n[0]][n[1]];
+  $('nextTitle').textContent = `S${n[0]} A${ep.episode_num || n[1] + 1} ${ep.title || ''}`;
+  $('nextUp').classList.remove('hidden'); wake();
+  let left = 10; $('nextCount').textContent = left;
+  clearInterval(nextTimer);
+  nextTimer = setInterval(() => { left--; $('nextCount').textContent = left; if (left <= 0) startNextEpisode(); }, 1000);
+  setTimeout(() => $('nextGo').focus(), 50);
+}
+function hideNext(){ clearInterval(nextTimer); $('nextUp').classList.add('hidden'); }
+function startNextEpisode(){
+  hideNext(); if (!epCtx) return;
+  const n = nextEpisodeOf(epCtx); if (!n) return;
+  serItem = epCtx.serItem; serData = epCtx.serData;
+  savePos(nowItem); playEpisode(n[0], n[1]);
+}
+$('nextGo').onclick = startNextEpisode;
+$('nextCancel').onclick = () => { if (epCtx) epCtx.dismissed = true; hideNext(); };
 $('serSeason').onchange = renderEpisodes;
 $('serEps').onclick = e => { const b = e.target.closest('[data-ep]'); if (b) playEpisode($('serSeason').value, +b.dataset.ep); };
 $('dPlay').onclick = () => {
@@ -1287,10 +1372,11 @@ $('dPlay').onclick = () => {
   if (c.seriesId && curXt) {
     if (!serData) return;
     const s = $('serSeason').value, eps = serData.episodes[s] || [];
-    let i = eps.findIndex(ep => !hist[epUrl(ep)]); if (i < 0) i = 0;
+    let i = eps.findIndex(ep => !done[epUrl(ep)]); if (i < 0) i = 0;
     if (eps.length) playEpisode(s, i);
   } else { closeDialogs(); play(idxOf.get(c)); }
 };
+function moviePlayLabel(c){ return pos[c.url] ? `▶ Fortsätt (${fmtTime(pos[c.url].t)})` : done[c.url] ? '▶ Spela igen' : '▶ Spela'; }
 $('dFav').onclick = () => detailItem && toggleFav(detailItem);
 function updateFavBtns(){
   if (detailItem) $('dFav').textContent = favs.has(detailItem.url) ? '✓ I min lista' : '+ Min lista';
@@ -1354,6 +1440,23 @@ function startStream(c){
   }
 }
 video.addEventListener('playing', () => status(''));
+let lastSave = 0;
+video.addEventListener('timeupdate', () => {
+  if (Date.now() - lastSave > 10000) { lastSave = Date.now(); savePos(nowItem); }
+  checkNextEpisode();
+});
+video.addEventListener('pause', () => savePos(nowItem));
+video.addEventListener('ended', () => { savePos(nowItem); if (epCtx) startNextEpisode(); });
+// Hoppa till sparad position när filmen har laddats
+video.addEventListener('loadedmetadata', () => {
+  const q = nowItem && TYPE(nowItem) !== 'live' && pos[nowItem.url];
+  if (q && q.t > 30 && video.duration && q.t < video.duration - 60) {
+    video.currentTime = q.t;
+    $('pRestart').classList.remove('hidden');
+    status('Fortsätter från ' + fmtTime(q.t)); setTimeout(() => status(''), 3000);
+    setTimeout(() => $('pRestart').classList.add('hidden'), 12000);
+  }
+});
 video.addEventListener('waiting', () => status('Buffrar…'));
 video.addEventListener('error', () => { if (!hls && !ts && video.getAttribute('src')) status('Kunde inte spela den här strömmen.', true); });
 
@@ -1369,6 +1472,7 @@ function openPlayer(c){
   if (NATIVE || matchMedia('(pointer:coarse)').matches) enterFs();
 }
 function closePlayer(){
+  savePos(nowItem); epCtx = null; hideNext();
   stop(); exitFs();
   $('player').classList.add('hidden'); status('');
   const i = lastCard?.dataset.i;
@@ -1392,6 +1496,7 @@ function wake(){
 ['mousemove','touchstart','click'].forEach(ev => $('player').addEventListener(ev, wake, { passive: true }));
 video.addEventListener('pause', wake);
 $('pBack').onclick = closePlayer;
+$('pRestart').onclick = () => { video.currentTime = 0; delete pos[nowItem?.url]; store.set('iptv_pos', pos); $('pRestart').classList.add('hidden'); };
 $('pFav').onclick = () => { const c = nowItem?.parent || nowItem; if (c) toggleFav(c); };
 
 function step(d){
@@ -1568,6 +1673,10 @@ document.addEventListener('keydown', e => {
   if (inPlayer) {
     wake();
     const live = TYPE(nowItem || {}) === 'live';
+    if (t.closest?.('.nextup')) { // rutan "Nästa avsnitt"
+      if (is(k, 'LEFT') || is(k, 'RIGHT')) { e.preventDefault(); (t.id === 'nextGo' ? $('nextCancel') : $('nextGo')).focus(); }
+      return;
+    }
     if (t.closest?.('.pbar') && (is(k, 'LEFT') || is(k, 'RIGHT') || is(k, 'OK'))) {
       if (is(k, 'OK')) return; // knappen i listen hanterar klicket
       e.preventDefault();
