@@ -2150,13 +2150,13 @@ function liveFailed(msg){
   status(msg, true);
 }
 let nativeBusy = false;
-async function runNative(c){
+async function runNative(c, opts = {}){
   if (nativeBusy) return; nativeBusy = true;
   nowItem = c; status('');
   const q = pos[c.url];
   const start = q && q.t > 30 && q.t < q.d - 60 ? q.t : 0;
   let r;
-  const args = { url: c.url, title: c.name, startSec: start, skipIntro: !!c.parent };
+  const args = { url: c.url, title: c.name, startSec: start, skipIntro: !!c.parent, live: TYPE(c) === 'live', castOnStart: !!opts.cast };
   if (TYPE(c) === 'live') {
     // Skicka med kanallistan så att man kan byta kanal i spelaren (max 1500 runt vald kanal)
     const list = (queue.filter(x => TYPE(x) === 'live').length > 1 ? queue.filter(x => TYPE(x) === 'live') : sortList(byType.live, 'num'));
@@ -2482,9 +2482,9 @@ function updateCastBtns(){
 function chooseDevice(cb){
   const ids = Object.keys(devices).sort((a, b) => (devices[b].tv ? 1 : 0) - (devices[a].tv ? 1 : 0));
   let html = ids.map(id => `<button class="f" type="button" data-dev="${id}">${devices[id].tv ? '📺' : '💻'} ${esc(devices[id].name)} <small>(IPTV-appen)</small></button>`).join('');
-  if (castReady) html += `<button class="f" type="button" data-dev="cc">📡 Chromecast</button>`;
-  if (ExternalPlayer) html += `<button class="f" type="button" data-dev="ext">📡 Chromecast / smart-TV via annan app<br><small>Välj t.ex. VLC eller Web Video Caster och tryck på cast-ikonen där</small></button>`;
-  if (ids.length === 1 && !castReady && !ExternalPlayer) return cb(ids[0]); // bara en TV: starta direkt
+  if (castReady || NativePlayer) html += `<button class="f" type="button" data-dev="cc">📡 Chromecast / Google TV<br><small>TV-apparater och boxar med Chromecast inbyggt</small></button>`;
+  if (ExternalPlayer) html += `<button class="f ghost" type="button" data-dev="ext">↗ Via annan app<br><small>VLC eller Web Video Caster – om Chromecast inte fungerar</small></button>`;
+  if (ids.length === 1 && !castReady && !ExternalPlayer && !NativePlayer) return cb(ids[0]); // bara en TV: starta direkt
   if (!html) html = '<div class="msg">Inget att casta till hittades.</div>';
   $('castList').innerHTML = html;
   $('castList').onclick = e => { const b = e.target.closest('[data-dev]'); if (b) { closeDialogs(); cb(b.dataset.dev); } };
@@ -2493,7 +2493,7 @@ function chooseDevice(cb){
 function castTo(item){
   const to = pendingCast; pendingCast = null; if (!to || !item) return;
   if (to === 'ext') { closeDialogs(); openExternal(item); return; }
-  if (to === 'cc') { closeDialogs(); chromecast(item); return; }
+  if (to === 'cc') { closeDialogs(); if (NativePlayer) runNative(item, { cast: true }); else chromecast(item); return; }
   castTarget = to; castLive = TYPE(item) === 'live';
   sendCast('cmd', { to, action: 'play', item: { name: item.name, url: item.url, type: item.type, logo: item.logo } });
   if (!$('player').classList.contains('hidden')) { stop(); exitFs(); $('player').classList.add('hidden'); }

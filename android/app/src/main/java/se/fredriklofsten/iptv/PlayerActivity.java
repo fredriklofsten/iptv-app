@@ -35,6 +35,11 @@ import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 import androidx.media3.ui.PlayerView;
+import androidx.media3.cast.CastPlayer;
+import androidx.media3.cast.SessionAvailabilityListener;
+import androidx.mediarouter.app.MediaRouteButton;
+import com.google.android.gms.cast.framework.CastButtonFactory;
+import com.google.android.gms.cast.framework.CastContext;
 
 // Inbyggd videospelare (ExoPlayer): klarar HLS, MPEG-TS, MP4 och MKV,
 // med val av ljudspår och undertexter via kugghjulet/CC-knappen.
@@ -51,6 +56,12 @@ public class PlayerActivity extends AppCompatActivity {
     private LinearLayout zapBox;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private DefaultMediaSourceFactory sources;
+    // Google Cast
+    private CastPlayer castPlayer;
+    private Player active;
+    private MediaRouteButton castBtn;
+    private String curUrl, curTitle;
+    private boolean isLive = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -97,6 +108,8 @@ public class PlayerActivity extends AppCompatActivity {
         index = in.getIntExtra("index", 0);
         if (urls != null && !urls.isEmpty() && index >= 0 && index < urls.size()) { url = urls.get(index); title = titles.get(index); }
         if (url == null) { error = "Länk saknas"; done(); return; }
+        curUrl = url; curTitle = title;
+        isLive = in.getBooleanExtra("live", false) || (urls != null && urls.size() > 1);
 
         if (urls != null && urls.size() > 1) {
             // Knappar för kanalbyte (för pekskärm)
@@ -130,6 +143,7 @@ public class PlayerActivity extends AppCompatActivity {
             .setTrackSelector(tracks)
             .build();
         view.setPlayer(player);
+        active = player;
 
         player.setMediaItem(itemFor(url, title));
         if (startMs > 0) player.seekTo(startMs);
@@ -138,7 +152,7 @@ public class PlayerActivity extends AppCompatActivity {
 
         player.addListener(new Player.Listener() {
             @Override public void onPlaybackStateChanged(int state) {
-                if (state == Player.STATE_ENDED) { ended = true; done(); }
+                if (state == Player.STATE_ENDED && active == player) { ended = true; done(); }
             }
             @Override public void onPlayerError(PlaybackException e) {
                 // Live: en kanal som inte fungerar ska inte stänga spelaren – visa felet och låt användaren byta
@@ -148,6 +162,7 @@ public class PlayerActivity extends AppCompatActivity {
             }
         });
 
+        setupCast(root, in.getBooleanExtra("castOnStart", false));
         if (urls != null && urls.size() > 1) showLabel(title);
         else if (title != null && !title.isEmpty()) Toast.makeText(this, title, Toast.LENGTH_SHORT).show();
         view.requestFocus();
@@ -158,12 +173,78 @@ public class PlayerActivity extends AppCompatActivity {
         });
     }
 
+    private String mimeFor(String url) {
+        String u = url.toLowerCase();
+        int q = u.indexOf('?'); if (q > 0) u = u.substring(0, q);
+        if (u.contains(".m3u8")) return MimeTypes.APPLICATION_M3U8;
+        if (u.endsWith(".mkv")) return MimeTypes.VIDEO_MATROSKA;
+        if (u.endsWith(".ts")) return MimeTypes.VIDEO_MP2T;
+        if (u.endsWith(".webm")) return MimeTypes.VIDEO_WEBM;
+        return MimeTypes.VIDEO_MP4;
+    }
+
     private MediaItem itemFor(String url, String title) {
         MediaItem.Builder item = new MediaItem.Builder()
             .setUri(Uri.parse(url))
             .setMediaMetadata(new MediaMetadata.Builder().setTitle(title).build());
-        if (url.toLowerCase().contains(".m3u8")) item.setMimeType(MimeTypes.APPLICATION_M3U8);
+        String mime = mimeFor(url);
+        // Lokalt får ExoPlayer själv avgöra formatet utom för HLS; Chromecast behöver alltid typen
+        if (MimeTypes.APPLICATION_M3U8.equals(mime) || active == castPlayer) item.setMimeType(mime);
         return item.build();
+    }
+
+    // ===== Google Cast (samma cast-ikon som i andra streamingappar) =====
+    private void setupCast(FrameLayout root, boolean openChooser) {
+        try {
+            CastContext ctx = CastContext.getSharedInstance(this);
+            castPlayer = new CastPlayer(ctx);
+            castPlayer.addListener(new Player.Listener() {
+                @Override public void onPlaybackStateChanged(int state) {
+                    if (state == Player.STATE_ENDED && active == castPlayer && !isLive) { ended = true; done(); }
+                }
+                @Override public void onPlayerError(PlaybackException e) {
+                    Toast.makeText(PlayerActivity.this, "Chromecast kunde inte spela den här strömmen", Toast.LENGTH_LONG).show();
+                    switchTo(player);
+                }
+            });
+            castPlayer.setSessionAvailabilityListener(new SessionAvailabilityListener() {
+                @Override public void onCastSessionAvailable() { switchTo(castPlayer); }
+                @Override public void onCastSessionUnavailable() { switchTo(player); }
+            });
+            castBtn = new MediaRouteButton(this);
+            CastButtonFactory.setUpMediaRouteButton(getApplicationContext(), castBtn);
+            castBtn.setBackgroundColor(0x99000000);
+            castBtn.setPadding(dp(8), dp(8), dp(8), dp(8));
+            FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(dp(52), dp(52), Gravity.TOP | Gravity.END);
+            cp.setMargins(0, dp(16), dp(16), 0);
+            root.addView(castBtn, cp);
+            view.setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) vis -> {
+                castBtn.setVisibility(active == castPlayer ? View.VISIBLE : vis);
+                if (zapBox != null) zapBox.setVisibility(vis);
+            });
+            if (castPlayer.isCastSessionAvailable()) switchTo(castPlayer);
+            else if (openChooser) ui.postDelayed(() -> { if (castBtn != null) castBtn.performClick(); }, 700);
+        } catch (Exception e) {
+            // Ingen Google Play-tjänst (t.ex. Fire TV): spela lokalt utan cast-ikon
+            castPlayer = null;
+            if (openChooser) Toast.makeText(this, "Chromecast stöds inte på den här enheten", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    // Flytta uppspelningen mellan telefonen och Chromecast och fortsätt på samma ställe
+    private void switchTo(Player target) {
+        if (target == null || target == active) return;
+        Player prev = active;
+        long pos = isLive ? C.TIME_UNSET : prev.getCurrentPosition();
+        active = target;
+        MediaItem item = itemFor(curUrl, curTitle);
+        if (pos != C.TIME_UNSET && pos > 0) target.setMediaItem(item, pos); else target.setMediaItem(item);
+        target.setPlayWhenReady(true);
+        target.prepare();
+        prev.stop();
+        view.setPlayer(target);
+        if (target == castPlayer) { showLabel("📺 Spelas på TV – " + curTitle); view.showController(); }
+        else showLabel("Spelas på telefonen");
     }
 
     private int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }
@@ -182,9 +263,10 @@ public class PlayerActivity extends AppCompatActivity {
     private void zap(int d) {
         if (urls == null || urls.size() < 2 || player == null) return;
         index = (index + d + urls.size()) % urls.size();
-        player.setMediaItem(itemFor(urls.get(index), titles.get(index)));
-        player.prepare();
-        player.setPlayWhenReady(true);
+        curUrl = urls.get(index); curTitle = titles.get(index);
+        active.setMediaItem(itemFor(curUrl, curTitle));
+        active.prepare();
+        active.setPlayWhenReady(true);
         showLabel(titles.get(index));
     }
 
@@ -205,7 +287,7 @@ public class PlayerActivity extends AppCompatActivity {
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (player == null) return super.onKeyDown(keyCode, event);
         if (keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE || keyCode == KeyEvent.KEYCODE_SPACE) {
-            player.setPlayWhenReady(!player.getPlayWhenReady());
+            active.setPlayWhenReady(!active.getPlayWhenReady());
             return true;
         }
         boolean live = urls != null && urls.size() > 1;
@@ -225,9 +307,10 @@ public class PlayerActivity extends AppCompatActivity {
         if (finished) return;
         finished = true;
         Intent result = new Intent();
-        if (player != null) {
-            long dur = player.getDuration();
-            result.putExtra("positionMs", player.getCurrentPosition());
+        Player p = active != null ? active : player;
+        if (p != null) {
+            long dur = p.getDuration();
+            result.putExtra("positionMs", p.getCurrentPosition());
             result.putExtra("durationMs", dur == C.TIME_UNSET ? 0 : dur);
         }
         result.putExtra("ended", ended);
@@ -240,13 +323,14 @@ public class PlayerActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        if (player != null && !isFinishing()) player.pause();
+        if (player != null && !isFinishing() && active == player) player.pause(); // castning fortsätter i bakgrunden
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
         ui.removeCallbacksAndMessages(null);
+        if (castPlayer != null) { castPlayer.setSessionAvailabilityListener(null); castPlayer.release(); castPlayer = null; }
         if (player != null) { player.release(); player = null; }
     }
 }

@@ -25,6 +25,8 @@ public class NativePlayerPlugin extends Plugin {
         intent.putExtra("title", call.getString("title", ""));
         intent.putExtra("startMs", (long) ((start == null ? 0 : start) * 1000));
         intent.putExtra("skipIntro", Boolean.TRUE.equals(call.getBoolean("skipIntro", false)));
+        intent.putExtra("castOnStart", Boolean.TRUE.equals(call.getBoolean("castOnStart", false)));
+        intent.putExtra("live", Boolean.TRUE.equals(call.getBoolean("live", false)));
         // Valfri kanallista för live-TV
         JSArray list = call.getArray("channels");
         if (list != null && list.length() > 1) {
