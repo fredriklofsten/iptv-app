@@ -19,7 +19,6 @@
   button.ghost,.filebtn{background:var(--panel);border:1px solid var(--line);color:var(--text)}
   .filebtn input{display:none}
   .f:focus,.f.kfocus{outline:3px solid var(--focus);outline-offset:2px}
-  #list li.f:focus{outline-offset:-3px}
 
   /* Inloggning */
   .center{height:100%;display:flex;align-items:center;justify-content:center;padding:20px}
@@ -32,37 +31,120 @@
   .bigcode{font-size:3.2em;letter-spacing:.2em;font-weight:700;text-align:center;font-family:ui-monospace,Menlo,monospace;color:var(--focus)}
   .link{background:none;border:0;color:var(--acc);padding:4px;text-decoration:underline}
 
-  /* App */
-  #app{height:100%;display:flex;flex-direction:column}
-  header{display:flex;gap:8px;padding:10px;border-bottom:1px solid var(--line);align-items:center}
-  header h1{font-size:1.05em;margin:0 6px 0 0;white-space:nowrap}
-  header select{width:auto;flex:1;min-width:0;max-width:340px}
-  header .sp{flex:1}
-  main{flex:1;display:flex;min-height:0}
-  aside{width:340px;border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
-  body.tv aside{width:520px}
-  .filters{display:flex;gap:6px;padding:10px;border-bottom:1px solid var(--line)}
-  .filters input{flex:1;min-width:0}
-  .filters select{width:auto;max-width:45%}
-  #list{list-style:none;margin:0;padding:0;overflow-y:auto;flex:1}
-  #list li{display:flex;gap:10px;align-items:center;padding:.5em .8em;cursor:pointer;border-bottom:1px solid #1d212a}
-  #list li:hover{background:#1b1f28}
-  #list li.active{background:var(--accbg)}
-  #list img,#list .ph{width:2.6em;height:1.8em;object-fit:contain;flex-shrink:0;background:#0b0d11;border-radius:4px}
-  #list .ph{display:flex;align-items:center;justify-content:center;font-size:.7em;color:var(--mute)}
-  #list .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #list .grp{font-size:.8em;color:var(--mute)}
-  #list .fav{margin-left:auto;color:var(--mute);font-size:1.2em;padding:0 4px}
-  #list .fav.on{color:var(--focus)}
-  .empty{padding:24px;color:var(--mute);text-align:center;cursor:default!important}
-  .count{padding:6px 12px;font-size:.8em;color:var(--mute);border-top:1px solid var(--line)}
-  section{flex:1;display:flex;flex-direction:column;min-width:0;padding:12px;gap:10px}
-  video{width:100%;flex:1;min-height:0;background:#000;border-radius:10px}
-  .nowbar{display:flex;gap:8px;align-items:center}
-  #now{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  #status{font-size:.85em;color:var(--mute);min-height:1.2em}
-  #status.err{color:#ff7a7a}
-  .tvhint{font-size:.75em;color:var(--mute)}
+  /* App – streamingstil */
+  #app{height:100%;display:flex;flex-direction:column;background:#0b0b0f}
+  #topnav{display:flex;align-items:center;gap:14px;padding:10px 4%;background:linear-gradient(180deg,rgba(0,0,0,.85),rgba(0,0,0,0));position:absolute;top:0;left:0;right:0;z-index:5}
+  #topnav.solid{background:#0b0b0f;box-shadow:0 2px 12px rgba(0,0,0,.5)}
+  .brand{font-size:1.35em;letter-spacing:.04em;color:var(--focus);white-space:nowrap}
+  .brand b{color:#fff}
+  .navtabs{display:flex;gap:4px;flex:1}
+  .nav{background:none;border:0;color:#cfd3dc;padding:.45em .8em;border-radius:6px;font-weight:500}
+  .nav span{margin-right:6px}
+  .nav.on{color:#fff;font-weight:700;background:rgba(255,255,255,.08)}
+  .iconbtn{background:rgba(255,255,255,.08);border:0;color:#fff;border-radius:6px;padding:.45em .8em}
+  .main{flex:1;overflow-y:auto;overflow-x:hidden;position:relative}
+  #view{padding-bottom:40px}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1d1f27;padding:.6em 1em;border-radius:8px;z-index:6;max-width:90vw}
+  .toast:empty{display:none}
+
+  .hero{position:relative;height:62vh;min-height:320px;display:flex;align-items:flex-end;overflow:hidden}
+  .hbg{position:absolute;inset:-30px;background-size:cover;background-position:center;filter:blur(18px) brightness(.55);transform:scale(1.08)}
+  .hposter{position:absolute;right:6%;bottom:12%;height:70%;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .hgrad{position:absolute;inset:0;background:linear-gradient(90deg,rgba(11,11,15,.95) 0%,rgba(11,11,15,.5) 45%,rgba(11,11,15,0) 70%),linear-gradient(0deg,#0b0b0f 0%,rgba(11,11,15,0) 35%)}
+  .hinfo{position:relative;padding:0 4% 5%;max-width:640px}
+  .hinfo h1{font-size:2.6em;margin:0 0 .2em;line-height:1.1;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+  .hmeta{color:#cfd3dc;margin-bottom:1em}
+  .hmeta .score{color:#46d369;font-weight:700}
+  .hbtns,.dbtns{display:flex;gap:10px;flex-wrap:wrap}
+  button.play{background:#fff;color:#000;font-weight:700;padding:.65em 1.6em;border-radius:6px}
+  .hbtns .ghost,.dbtns .ghost{background:rgba(109,109,110,.7);border:0;color:#fff;font-weight:600;padding:.65em 1.3em;border-radius:6px}
+
+  .pagehead{padding:84px 4% 6px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .pagehead h2{margin:0;font-size:1.8em}
+  .pagehead select{width:auto;margin-left:auto}
+  .chips{display:flex;gap:8px;overflow-x:auto;padding:8px 4% 14px;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#ddd;border-radius:999px;padding:.4em 1em;flex-shrink:0}
+  .chip.on{background:#fff;color:#000;border-color:#fff;font-weight:600}
+
+  .lane{margin:6px 0 18px}
+  .rowhead{display:flex;align-items:baseline;gap:12px;padding:0 4%}
+  .rowhead h3{margin:0 0 8px;font-size:1.2em}
+  .more{background:none;border:0;color:#8fb3ff;padding:2px 6px;font-size:.9em}
+  .rowscroll{display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;padding:8px 4% 14px;scroll-padding:0 4%;scrollbar-width:none}
+  .rowscroll::-webkit-scrollbar{display:none}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;padding:6px 4% 20px}
+  .grid.wide{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
+  .card{position:relative;flex-shrink:0;padding:0;border:0;border-radius:6px;overflow:hidden;background:#1c1d24;color:#fff;text-align:left;transition:transform .15s ease, box-shadow .15s ease}
+  .card.poster{width:150px;aspect-ratio:2/3}
+  .card.wide{width:220px;aspect-ratio:16/10;background:linear-gradient(135deg,#1e2230,#15161c)}
+  .grid .card{width:auto}
+  .card img{width:100%;height:100%;object-fit:cover;display:block}
+  .card.wide img{object-fit:contain;padding:14% 18% 26%}
+  .ctitle{position:absolute;left:0;right:0;bottom:0;padding:22px 8px 7px;font-size:.82em;font-weight:600;background:linear-gradient(0deg,rgba(0,0,0,.9),rgba(0,0,0,0));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .card .badge{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.7);font-size:.72em;padding:2px 6px;border-radius:4px}
+  .card .num{position:absolute;top:6px;left:6px;font-size:.75em;color:#aab}
+  .card.isfav::after{content:'★';position:absolute;top:4px;right:7px;color:var(--focus);text-shadow:0 1px 4px #000}
+  .card .seen{position:absolute;left:0;bottom:0;height:3px;width:100%;background:#e5a00d}
+  .card:hover,.card:focus{transform:scale(1.07);z-index:2;box-shadow:0 10px 30px rgba(0,0,0,.7)}
+  .card.f:focus{outline:3px solid #fff;outline-offset:0}
+  .loadmore{display:block;margin:0 auto 30px}
+  .empty{padding:120px 4% 40px;color:var(--mute);text-align:center}
+  .empty button{margin-top:16px}
+  .searchbox{margin:0 4% 10px;width:92%!important;font-size:1.2em!important;padding:.8em 1em!important}
+
+  /* Detaljsida */
+  .detail{width:min(920px,100%);max-height:94vh;overflow:auto;background:#16171c;border-radius:10px;box-shadow:0 30px 80px rgba(0,0,0,.7)}
+  .dhero{position:relative;min-height:340px;display:flex;align-items:flex-end;overflow:hidden}
+  .dhero .hbg{filter:blur(10px) brightness(.6)}
+  .dhero.backdrop .hbg{filter:brightness(.75);inset:0;transform:none}
+  .dgrad{position:absolute;inset:0;background:linear-gradient(0deg,#16171c 4%,rgba(22,23,28,.4) 60%,rgba(22,23,28,.1))}
+  .dinfo{position:relative;padding:24px 28px 16px;display:flex;gap:20px;align-items:flex-end}
+  .dinfo img{width:130px;border-radius:6px;box-shadow:0 10px 30px rgba(0,0,0,.6)}
+  .dinfo h2{margin:0 0 6px;font-size:2em;line-height:1.1}
+  .dclose{position:absolute;top:12px;right:12px;z-index:2;background:rgba(0,0,0,.6);border:0;border-radius:50%;width:2.4em;height:2.4em;padding:0;color:#fff}
+  .dbody{padding:4px 28px 26px}
+  .dbody p{color:#cfd3dc;line-height:1.5;margin:4px 0 16px}
+  .eplist{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+  .eplist button{text-align:left;white-space:normal;background:#1f2129;border:1px solid #2a2d38;color:#eee;padding:.8em 1em}
+  .eplist button .epn{color:var(--mute);margin-right:10px}
+
+  /* Spelare */
+  .player{background:#000;padding:0;display:block;z-index:20}
+  .player video{position:absolute;inset:0;width:100%;height:100%;background:#000;border-radius:0}
+  .pbar{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:10px;padding:14px 3%;background:linear-gradient(180deg,rgba(0,0,0,.85),rgba(0,0,0,0));transition:opacity .3s}
+  .player.idle .pbar{opacity:0;pointer-events:none}
+  .player.idle{cursor:none}
+  #now{flex:1;font-weight:700;font-size:1.1em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #pstatus{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.6);padding:.6em 1em;border-radius:8px}
+  #pstatus:empty{display:none}
+  .tvhint{position:absolute;bottom:70px;left:0;right:0;text-align:center;font-size:.8em;color:#aaa;transition:opacity .3s}
+  .player.idle .tvhint{opacity:0}
+
+  body.tv .card.poster{width:200px}
+  body.tv .card.wide{width:290px}
+  body.tv .grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+
+  @media (max-width:760px){
+    #topnav{padding:10px 4%}
+    .navtabs{position:fixed;left:0;right:0;bottom:0;background:#121318;border-top:1px solid #23252e;justify-content:space-around;padding:4px 2px calc(4px + env(safe-area-inset-bottom));z-index:8;gap:0}
+    .nav{display:flex;flex-direction:column;align-items:center;font-size:.72em;padding:.4em .2em;flex:1;background:none!important}
+    .nav span{margin:0 0 2px;font-size:1.5em}
+    .nav.on{color:#fff}
+    .nav:not(.on){color:#8a8f9c}
+    #view{padding-bottom:90px}
+    .hero{height:56vh}
+    .hposter{display:none}
+    .hinfo h1{font-size:1.9em}
+    .card.poster{width:112px}
+    .card.wide{width:170px}
+    .grid{grid-template-columns:repeat(3,1fr);gap:8px}
+    .grid.wide{grid-template-columns:repeat(2,1fr)}
+    .pagehead{padding-top:70px}
+    .pagehead select{margin-left:0;width:100%}
+    .dinfo{padding:16px}.dinfo img{width:90px}.dbody{padding:4px 16px 20px}
+    .toast{bottom:84px}
+  }
 
   /* Dialoger */
   .overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
@@ -76,24 +158,6 @@
   .pane{display:flex;flex-direction:column;gap:10px}
   .freegrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .chk{display:flex;gap:8px;align-items:center;color:var(--mute)}
-  .sections{display:flex;gap:6px;padding:10px 10px 0}
-  .sec{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--mute);padding:.5em .3em}
-  .sec.on{background:var(--accbg);color:var(--text);border-color:var(--acc)}
-  .filters+.filters{padding-top:0}
-  .filters select{flex:1;min-width:0;max-width:none!important}
-  #list .meta{font-size:.8em;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #list .num{font-size:.8em;color:var(--mute);min-width:2.2em;text-align:right}
-  #list .poster{width:2.4em;height:3.4em;object-fit:cover}
-  .eplist{display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow:auto}
-  .eplist button{text-align:left;white-space:normal}
-
-  @media (max-width:760px){
-    main{flex-direction:column}
-    section{order:-1;flex:none;padding:8px}
-    video{flex:none;aspect-ratio:16/9;height:auto}
-    aside{width:auto!important;border-right:0;border-top:1px solid var(--line);flex:1}
-    header h1{display:none}
-  }
 </style>
 </head>
 <body>
@@ -127,43 +191,79 @@
 
 <!-- Själva appen -->
 <div id="app" class="hidden">
-  <header>
-    <h1>📺 IPTV</h1>
-    <select class="f" id="plSelect" title="Spellista"></select>
-    <button class="f ghost" id="plManageBtn">Spellistor</button>
-    <span class="sp"></span>
-    <button class="f ghost" id="pairBtn">Koppla TV</button>
-    <button class="f ghost" id="logoutBtn">Logga ut</button>
-  </header>
-  <main>
-    <aside>
-      <div class="sections hidden" id="sections">
-        <button class="f sec on" type="button" data-sec="live">📺 Live-TV</button>
-        <button class="f sec" type="button" data-sec="movie">🎬 Filmer</button>
-        <button class="f sec" type="button" data-sec="series">🎞️ Serier</button>
+  <nav id="topnav">
+    <div class="brand">▶ <b>IPTV</b></div>
+    <div class="navtabs" id="navtabs">
+      <button class="f nav on" type="button" data-view="home"><span>🏠</span>Hem</button>
+      <button class="f nav" type="button" data-view="live"><span>📺</span>Live-TV</button>
+      <button class="f nav" type="button" data-view="movie"><span>🎬</span>Filmer</button>
+      <button class="f nav" type="button" data-view="series"><span>🎞️</span>Serier</button>
+      <button class="f nav" type="button" data-view="fav"><span>★</span>Min lista</button>
+      <button class="f nav" type="button" data-view="search"><span>🔍</span>Sök</button>
+    </div>
+    <button class="f iconbtn" type="button" id="menuBtn" title="Meny">☰</button>
+  </nav>
+  <div class="main" id="main">
+    <div id="view"></div>
+  </div>
+  <div id="status" class="toast"></div>
+</div>
+
+<!-- Spelare -->
+<div id="player" class="overlay player hidden">
+  <video id="video" controls playsinline></video>
+  <div class="pbar">
+    <button class="f iconbtn" type="button" id="pBack">← Tillbaka</button>
+    <div id="now"></div>
+    <button class="f iconbtn" type="button" id="prevBtn" title="Föregående kanal">▲ Kanal</button>
+    <button class="f iconbtn" type="button" id="nextBtn" title="Nästa kanal">▼ Kanal</button>
+    <button class="f iconbtn" type="button" id="pFav" title="Min lista">☆</button>
+    <button class="f iconbtn" type="button" id="fullBtn" title="Helskärm">⛶</button>
+  </div>
+  <div id="pstatus"></div>
+  <div class="tvhint" id="tvHint"></div>
+</div>
+
+<!-- Detaljsida för film/serie -->
+<div id="detail" class="overlay hidden">
+  <div class="detail">
+    <div class="dhero" id="dHero">
+      <div class="hbg" id="dBg"></div><div class="dgrad"></div>
+      <button class="f dclose" type="button" data-close title="Stäng">✕</button>
+      <div class="dinfo">
+        <img id="dPoster" alt="">
+        <div>
+          <h2 id="dTitle"></h2>
+          <div class="hmeta" id="dMeta"></div>
+          <div class="dbtns">
+            <button class="f play" type="button" id="dPlay">▶ Spela</button>
+            <button class="f ghost" type="button" id="dFav">+ Min lista</button>
+          </div>
+        </div>
       </div>
-      <div class="filters">
-        <input class="f" id="search" type="text" placeholder="Sök…">
+    </div>
+    <div class="dbody">
+      <p id="dPlot"></p>
+      <div id="dSeries" class="hidden">
+        <select class="f" id="serSeason"></select>
+        <div id="serEps" class="eplist"></div>
       </div>
-      <div class="filters">
-        <select class="f" id="group"><option value="">Alla grupper</option></select>
-        <select class="f" id="sort" title="Sortering"></select>
-      </div>
-      <ul id="list"></ul>
-      <div class="count" id="count"></div>
-    </aside>
-    <section>
-      <video id="video" controls playsinline></video>
-      <div class="nowbar">
-        <div id="now">Ingen kanal vald</div>
-        <button class="f ghost" id="prevBtn" title="Föregående kanal">◀</button>
-        <button class="f ghost" id="nextBtn" title="Nästa kanal">▶</button>
-        <button class="f ghost" id="fullBtn" title="Helskärm">⛶</button>
-      </div>
-      <div id="status"></div>
-      <div class="tvhint" id="tvHint"></div>
-    </section>
-  </main>
+      <div class="msg" id="serMsg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Meny -->
+<div id="menuDialog" class="overlay hidden">
+  <div class="card">
+    <h2>Meny</h2>
+    <div class="msg">Spellista</div>
+    <select class="f" id="plSelect"></select>
+    <button class="f ghost" type="button" id="plManageBtn">Hantera spellistor</button>
+    <button class="f ghost" type="button" id="pairBtn">Koppla TV</button>
+    <button class="f ghost" type="button" id="logoutBtn">Logga ut</button>
+    <button class="f" type="button" data-close>Stäng</button>
+  </div>
 </div>
 
 <!-- Dialog: spellistor -->
@@ -212,18 +312,6 @@
   </form>
 </div>
 
-<!-- Dialog: serie -->
-<div id="serDialog" class="overlay hidden">
-  <div class="card">
-    <h2 id="serTitle"></h2>
-    <div class="msg" id="serMeta"></div>
-    <select class="f" id="serSeason"></select>
-    <div id="serEps" class="eplist"></div>
-    <div class="msg" id="serMsg"></div>
-    <button class="f ghost" type="button" data-close>Stäng</button>
-  </div>
-</div>
-
 <!-- Dialog: koppla TV -->
 <div id="pairDialog" class="overlay hidden">
   <form class="card" id="pairForm">
@@ -253,7 +341,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const IS_TV = /Web0S|webOS|Tizen|SMART-TV|SmartTV|Android TV|AFT[A-Z]|BRAVIA|GoogleTV|CrKey/i.test(navigator.userAgent) || location.hash === '#tv';
 if (IS_TV) document.body.classList.add('tv');
 
-let curXt = null, section = 'live';
+let curXt = null;
 let user = null, playlists = [], channels = [], shown = [], current = -1;
 let favs = new Map(), settings = {}, hls = null, ts = null, rtChannel = null, codeTimer = null;
 
@@ -283,7 +371,7 @@ $('signupBtn').onclick = async () => {
 };
 $('toCodeBtn').onclick = () => { show('codeView'); startCodeLogin(); };
 $('toEmailBtn').onclick = () => show('loginView');
-$('logoutBtn').onclick = async () => { stop(); await sb.auth.signOut(); };
+$('logoutBtn').onclick = async () => { stop(); closeDialogs(); $('player').classList.add('hidden'); await sb.auth.signOut(); };
 
 // TV-inloggning med kod
 function randomSecret(){
@@ -362,7 +450,7 @@ async function loadAll(){
   renderPlSelect();
   const id = playlists.some(p => p.id === settings.last_playlist_id) ? settings.last_playlist_id : playlists[0]?.id;
   if (id) { $('plSelect').value = id; await loadPlaylist(id, true); }
-  else { channels = []; setGroups(); render(); status('Lägg till en spellista via knappen "Spellistor".'); }
+  else { channels = []; setGroups(); render(); }
 }
 
 function renderPlSelect(){
@@ -389,14 +477,14 @@ async function loadPlaylist(id, resume){
     channels = parseM3U(text || '');
   }
   setGroups(); render();
-  status(channels.length + ' kanaler.');
+  status(''); $('main').scrollTop = 0;
   saveSettings({ last_playlist_id: id });
   if (resume && settings.last_channel_url) {
     const i = channels.findIndex(c => c.url === settings.last_channel_url);
-    if (i > -1) { current = i; $('now').textContent = '▶ Fortsätt: ' + channels[i].name; render(); }
+    if (i > -1) current = i;
   }
 }
-$('plSelect').onchange = () => { stop(); current = -1; loadPlaylist($('plSelect').value); };
+$('plSelect').onchange = () => { stop(); current = -1; closeDialogs(); view = 'home'; loadPlaylist($('plSelect').value); };
 
 let saveTimer = null, pending = {};
 function saveSettings(patch){
@@ -410,11 +498,11 @@ function saveSettings(patch){
 
 async function toggleFav(c){
   if (favs.has(c.url)) {
-    favs.delete(c.url); render();
+    favs.delete(c.url); updateFavBtns();
     await sb.from('favorites').delete().eq('channel_url', c.url);
   } else {
     const row = { channel_url: c.url, name: c.name, logo: c.logo, group_title: c.group };
-    favs.set(c.url, row); render();
+    favs.set(c.url, row); updateFavBtns();
     await sb.from('favorites').upsert(row);
   }
 }
@@ -425,7 +513,7 @@ function subscribe(){
   rtChannel = sb.channel('sync-' + user.id)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'favorites', filter: 'user_id=eq.' + user.id }, async () => {
       const { data } = await sb.from('favorites').select('*');
-      favs = new Map((data || []).map(f => [f.channel_url, f])); render();
+      favs = new Map((data || []).map(f => [f.channel_url, f])); updateFavBtns();
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'playlists', filter: 'user_id=eq.' + user.id }, async () => {
       const sel = $('plSelect').value;
@@ -550,7 +638,7 @@ async function loadXtream(x){
       ...live.map(s => ({ type: 'live', name: s.name, logo: s.stream_icon || '', group: cm[String(s.category_id)] || 'Övrigt',
         num: +s.num || 0, added: +s.added || 0, url: `${x.s}/live/${path}/${s.stream_id}.m3u8` })),
       ...arr(vod).map(s => ({ type: 'movie', name: s.name, logo: s.stream_icon || '', group: vm[String(s.category_id)] || 'Övrigt',
-        added: +s.added || 0, rating: rating(s), year: s.year || '',
+        added: +s.added || 0, rating: rating(s), year: s.year || '', vodId: s.stream_id,
         url: `${x.s}/movie/${path}/${s.stream_id}.${s.container_extension || 'mp4'}` })),
       ...arr(series).map(s => ({ type: 'series', name: s.name, logo: s.cover || '', group: sm[String(s.category_id)] || 'Övrigt',
         added: +s.last_modified || (Date.parse(s.releaseDate || s.release_date) / 1000) || 0, rating: rating(s),
@@ -565,11 +653,18 @@ async function loadXtream(x){
 
 // ====== DIALOGER ======
 let lastFocus = null;
-function openDialog(id){ lastFocus = document.activeElement; $(id).classList.remove('hidden'); setTimeout(() => $(id).querySelector('input.f, .f')?.focus(), 50); }
+function openDialog(id){
+  document.querySelectorAll('.overlay:not(.hidden):not(#player)').forEach(o => o.classList.add('hidden'));
+  if (!document.activeElement?.closest?.('.overlay')) lastFocus = document.activeElement;
+  $(id).classList.remove('hidden');
+  setTimeout(() => $(id).querySelector('input.f, .f')?.focus(), 50);
+}
 function closeDialogs(){
-  const open = document.querySelector('.overlay:not(.hidden)'); if (!open) return false;
+  const open = [...document.querySelectorAll('.overlay:not(.hidden):not(#player)')].pop(); if (!open) return false;
   open.classList.add('hidden'); msg($('pairMsg'), ''); msg($('plMsg'), '');
-  lastFocus?.focus(); return true;
+  if (open.id === 'detail') detailItem = null;
+  if ($('player').classList.contains('hidden')) lastFocus?.focus();
+  return true;
 }
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = closeDialogs);
 
@@ -593,48 +688,39 @@ function parseM3U(text){
   return out;
 }
 
-// ====== KANALLISTA ======
+// ====== VYER (streamingstil) ======
 const SORTS = {
-  live:   [['std','Leverantörens ordning'],['num','Kanalnummer'],['name','Namn A–Ö'],['recent','Senast sedda']],
-  movie:  [['new','Senast tillagda'],['pop','Populärast'],['name','Namn A–Ö'],['recent','Senast sedda']],
-  series: [['new','Senast tillagda'],['pop','Populärast'],['name','Namn A–Ö'],['recent','Senast sedda']]
+  live:   [['num','Kanalnummer'],['name','Namn A–Ö'],['recent','Senast sedda'],['std','Leverantörens ordning']],
+  movie:  [['new','Senast tillagda'],['pop','Populärast'],['name','Namn A–Ö']],
+  series: [['new','Senast tillagda'],['pop','Populärast'],['name','Namn A–Ö']]
 };
 const store = { get(k, d){ try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch(_) { return d; } },
                 set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(_) {} } };
 let hist = store.get('iptv_hist', {});
 function remember(c){ hist[c.url] = Date.now(); store.set('iptv_hist', hist); }
 
+const TYPE = c => c.type || 'live';
+let view = 'home', byType = { live: [], movie: [], series: [] }, idxOf = new Map();
+const vstate = { live: { cat: '', limit: 200 }, movie: { cat: '', limit: 120 }, series: { cat: '', limit: 120 }, fav: {}, search: { q: '' } };
+
+// Anropas när en spellista har lästs in
 function setGroups(){
-  // Flikar: visa bara de sorter som finns i spellistan
-  const has = t => channels.some(c => (c.type || 'live') === t);
-  const avail = ['live','movie','series'].filter(has);
-  if (!avail.includes(section)) section = avail[0] || 'live';
-  document.querySelectorAll('.sec').forEach(b => { b.classList.toggle('hidden', !has(b.dataset.sec)); b.classList.toggle('on', b.dataset.sec === section); });
-  $('sections').classList.toggle('hidden', avail.length < 2);
-  $('search').placeholder = { live: 'Sök kanal…', movie: 'Sök film…', series: 'Sök serie…' }[section];
-
-  // Grupper med antal, A–Ö
-  const counts = {};
-  channels.forEach(c => { if ((c.type || 'live') === section) counts[c.group] = (counts[c.group] || 0) + 1; });
-  const groups = Object.keys(counts).sort((a, b) => a.localeCompare(b, 'sv'));
-  const prev = $('group').value;
-  $('group').innerHTML = '<option value="">Alla kategorier</option><option value="__fav">★ Favoriter</option>' +
-    groups.map(g => `<option value="${esc(g)}">${esc(g)} (${counts[g]})</option>`).join('');
-  $('group').value = [...$('group').options].some(o => o.value === prev) ? prev : '';
-
-  // Sortering, sparad per flik
-  const saved = store.get('iptv_sort_' + section, SORTS[section][0][0]);
-  $('sort').innerHTML = SORTS[section].map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
-  $('sort').value = SORTS[section].some(([v]) => v === saved) ? saved : SORTS[section][0][0];
+  byType = { live: [], movie: [], series: [] }; idxOf = new Map();
+  channels.forEach((c, i) => { idxOf.set(c, i); byType[TYPE(c)].push(c); });
+  document.querySelectorAll('.nav').forEach(b => {
+    const t = b.dataset.view; if (byType[t]) b.classList.toggle('hidden', !byType[t].length);
+  });
+  if (byType[view] && !byType[view].length) view = 'home';
+  ['live','movie','series'].forEach(t => vstate[t].cat = '');
 }
+// Ritar om den aktuella vyn
+function render(){ renderView(); }
 
-function sortList(list){
-  const by = $('sort').value, sv = (a, b) => a.name.localeCompare(b.name, 'sv', { numeric: true });
-  const idx = new Map(channels.map((c, i) => [c, i]));
-  const std = (a, b) => idx.get(a) - idx.get(b);
+function sortList(list, by){
+  const sv = (a, b) => a.name.localeCompare(b.name, 'sv', { numeric: true });
+  const std = (a, b) => idxOf.get(a) - idxOf.get(b);
   const cmp = {
-    std,
-    name: sv,
+    std, name: sv,
     num: (a, b) => (a.num || 1e9) - (b.num || 1e9) || std(a, b),
     new: (a, b) => (b.added || 0) - (a.added || 0) || sv(a, b),
     pop: (a, b) => (b.rating || 0) - (a.rating || 0) || (b.added || 0) - (a.added || 0),
@@ -642,95 +728,261 @@ function sortList(list){
   }[by] || std;
   return list.slice().sort(cmp);
 }
+const sortOf = t => store.get('iptv_sort_' + t, SORTS[t][0][0]);
+const cssUrl = u => String(u).replace(/'/g, '%27').replace(/\(/g, '%28').replace(/\)/g, '%29').replace(/\s/g, '%20');
+const fmtRating = r => Math.round(r * 10) / 10;
 
 function metaLine(c){
-  const parts = [c.group];
-  if (c.rating) parts.push('★ ' + (Math.round(c.rating * 10) / 10));
-  if (c.year) parts.push(c.year);
-  if ($('sort').value === 'new' && c.added) parts.push('tillagd ' + new Date(c.added * 1000).toLocaleDateString('sv-SE'));
-  if ($('sort').value === 'recent' && hist[c.url]) parts.push('sedd ' + new Date(hist[c.url]).toLocaleDateString('sv-SE'));
+  const parts = [];
+  if (c.rating) parts.push(`<span class="score">★ ${fmtRating(c.rating)}</span>`);
+  if (c.year) parts.push(esc(c.year));
+  if (c.group) parts.push(esc(c.group));
+  if (c.added && TYPE(c) !== 'live') parts.push('Tillagd ' + new Date(c.added * 1000).toLocaleDateString('sv-SE'));
   return parts.join(' · ');
 }
 
-function render(){
-  const q = $('search').value.toLowerCase(), g = $('group').value;
-  shown = sortList(channels.filter(c => (c.type || 'live') === section && (!q || c.name.toLowerCase().includes(q)) &&
-    (!g || (g === '__fav' ? favs.has(c.url) : c.group === g))));
-  if ($('sort').value === 'recent' && !q) { const seen = shown.filter(c => hist[c.url]); if (seen.length) shown = seen; }
-  const focusedUrl = document.activeElement?.closest?.('#list li')?.dataset.url;
-  const word = { live: 'kanaler', movie: 'filmer', series: 'serier' }[section];
-  if (!shown.length){
-    $('list').innerHTML = `<li class="empty">${channels.length ? 'Inget matchar.' : 'Inga kanaler.'}</li>`;
-    $('count').textContent = ''; return;
-  }
-  const max = 1500, poster = section !== 'live';
-  $('list').innerHTML = shown.slice(0, max).map((c, i) => `
-    <li class="f ${channels[current] === c ? 'active' : ''}" tabindex="0" data-i="${i}" data-url="${esc(c.url)}">
-      ${section === 'live' && $('sort').value === 'num' ? `<span class="num">${c.num || ''}</span>` : ''}
-      ${c.logo ? `<img class="${poster ? 'poster' : ''}" src="${esc(c.logo)}" loading="lazy" onerror="this.outerHTML='<div class=ph>TV</div>'">` : '<div class="ph">TV</div>'}
-      <div style="min-width:0"><div class="name">${esc(c.name)}</div><div class="meta">${esc(metaLine(c))}</div></div>
-      <span class="fav ${favs.has(c.url) ? 'on' : ''}" data-fav="${i}">★</span>
-    </li>`).join('');
-  $('count').textContent = shown.length > max ? `Visar ${max} av ${shown.length} ${word} – sök för att hitta fler` : `${shown.length} ${word}`;
-  if (focusedUrl) [...$('list').children].find(li => li.dataset.url === focusedUrl)?.focus();
+function card(c){
+  const live = TYPE(c) === 'live';
+  return `<button class="f card ${live ? 'wide' : 'poster'} ${favs.has(c.url) ? 'isfav' : ''}" type="button" data-i="${idxOf.get(c)}" title="${esc(c.name)}">
+    ${c.logo ? `<img src="${esc(c.logo)}" loading="lazy" alt="" onerror="this.remove()">` : ''}
+    ${live && c.num ? `<span class="num">${c.num}</span>` : ''}
+    ${!live && c.rating ? `<span class="badge">★ ${fmtRating(c.rating)}</span>` : ''}
+    <span class="ctitle">${esc(c.name)}</span>
+    ${!live && hist[c.url] ? '<span class="seen"></span>' : ''}
+  </button>`;
 }
-document.querySelectorAll('.sec').forEach(b => b.onclick = () => {
-  section = b.dataset.sec; $('search').value = ''; $('group').value = ''; setGroups(); render();
-  $('list').scrollTop = 0;
-});
-$('sort').onchange = () => { store.set('iptv_sort_' + section, $('sort').value); render(); $('list').scrollTop = 0; };
+function row(title, items, more){
+  if (!items.length) return '';
+  return `<section class="lane"><div class="rowhead"><h3>${esc(title)}</h3>${more ? `<button class="f more" type="button" data-more="${esc(more)}">Visa alla ›</button>` : ''}</div>
+    <div class="rowscroll">${items.slice(0, 40).map(card).join('')}</div></section>`;
+}
+function grid(items, limit, wide){
+  const more = items.length > limit ? `<button class="f ghost loadmore" type="button" data-loadmore="1">Visa fler (${items.length - limit} till)</button>` : '';
+  return `<div class="grid ${wide ? 'wide' : ''}">${items.slice(0, limit).map(card).join('')}</div>${more}`;
+}
+function hero(c){
+  if (!c) return '';
+  const i = idxOf.get(c), bg = c.logo ? `style="background-image:url('${esc(cssUrl(c.logo))}')"` : '';
+  return `<div class="hero"><div class="hbg" ${bg}></div>${c.logo ? `<img class="hposter" src="${esc(c.logo)}" alt="" onerror="this.remove()">` : ''}<div class="hgrad"></div>
+    <div class="hinfo"><h1>${esc(c.name)}</h1><div class="hmeta">${metaLine(c)}</div>
+    <div class="hbtns"><button class="f play" type="button" data-play="${i}">▶ Spela</button><button class="f ghost" type="button" data-info="${i}">ⓘ Mer info</button></div></div></div>`;
+}
+function pickHero(list){
+  const cands = sortList(list.filter(c => c.logo), 'new').slice(0, 30);
+  if (!cands.length) return null;
+  const best = sortList(cands, 'pop').slice(0, 8);
+  return best[Math.floor(Math.random() * best.length)];
+}
+function categories(list){
+  const counts = {};
+  list.forEach(c => counts[c.group] = (counts[c.group] || 0) + 1);
+  return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+}
 
-// ====== SERIER ======
-let serData = null, serItem = null;
-async function openSeries(c){
-  serItem = c;
-  $('serTitle').textContent = c.name; $('serMeta').textContent = metaLine(c);
+function renderView(){
+  document.querySelectorAll('.nav').forEach(b => b.classList.toggle('on', b.dataset.view === view));
+  const v = $('view');
+  if (!channels.length) {
+    v.innerHTML = `<div class="empty"><h2>Välkommen!</h2><p>Lägg till en spellista, en Xtream-inloggning eller gratiskanaler för att komma igång.</p>
+      <button class="f" type="button" data-open-pl="1">+ Lägg till spellista</button></div>`;
+    return;
+  }
+  if (view === 'home') v.innerHTML = homeView();
+  else if (view === 'fav') v.innerHTML = favView();
+  else if (view === 'search') { v.innerHTML = searchView(); const s = $('searchInput'); s.value = vstate.search.q; renderSearch(); }
+  else v.innerHTML = typeView(view);
+}
+
+function homeView(){
+  const m = byType.movie, s = byType.series, l = byType.live;
+  const watched = sortList([...m, ...s].filter(c => hist[c.url]), 'recent');
+  const watchedLive = sortList(l.filter(c => hist[c.url]), 'recent');
+  const favList = channels.filter(c => favs.has(c.url));
+  let html = hero(pickHero([...m, ...s]));
+  if (!m.length && !s.length) html += '<div style="height:80px"></div>';
+  html += row('Fortsätt titta', watched);
+  html += row('Senast sedda kanaler', watchedLive);
+  html += row('Min lista', favList, 'fav');
+  html += row('Nya filmer', sortList(m, 'new'), 'movie|');
+  if (m.some(c => c.rating)) html += row('Populära filmer', sortList(m, 'pop'), 'movie|');
+  html += row('Nya serier', sortList(s, 'new'), 'series|');
+  if (s.some(c => c.rating)) html += row('Populära serier', sortList(s, 'pop'), 'series|');
+  html += row('Live-TV', sortList(l, 'num'), 'live|');
+  categories(m).slice(0, 6).forEach(([g]) => html += row('Filmer: ' + g, sortList(m.filter(c => c.group === g), 'new'), 'movie|' + g));
+  categories(l).slice(0, 4).forEach(([g]) => html += row('Kanaler: ' + g, sortList(l.filter(c => c.group === g), 'num'), 'live|' + g));
+  return html;
+}
+
+function typeView(t){
+  const st = vstate[t], list = byType[t], by = sortOf(t);
+  const title = { live: 'Live-TV', movie: 'Filmer', series: 'Serier' }[t];
+  const cats = categories(list).sort((a, b) => a[0].localeCompare(b[0], 'sv'));
+  let html = `<div class="pagehead"><h2>${title}</h2>
+    <select class="f" id="sortSel" title="Sortera">${SORTS[t].map(([v, n]) => `<option value="${v}" ${v === by ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+    <div class="chips"><button class="f chip ${!st.cat ? 'on' : ''}" type="button" data-cat="">Alla</button>
+    <button class="f chip ${st.cat === '__fav' ? 'on' : ''}" type="button" data-cat="__fav">★ Min lista</button>
+    ${cats.map(([g, n]) => `<button class="f chip ${st.cat === g ? 'on' : ''}" type="button" data-cat="${esc(g)}">${esc(g)} <small>${n}</small></button>`).join('')}</div>`;
+  // Filmer/serier utan vald kategori: rader som på en streamingtjänst
+  if (t !== 'live' && !st.cat) {
+    html += row('Senast tillagda', sortList(list, 'new'));
+    if (list.some(c => c.rating)) html += row('Populärast', sortList(list, 'pop'));
+    categories(list).slice(0, 30).forEach(([g]) => html += row(g, sortList(list.filter(c => c.group === g), by), t + '|' + g));
+    return html;
+  }
+  const items = sortList(list.filter(c => !st.cat || (st.cat === '__fav' ? favs.has(c.url) : c.group === st.cat)), by);
+  return html + (items.length ? grid(items, st.limit, t === 'live') : '<div class="empty" style="padding-top:30px">Inget här ännu.</div>');
+}
+
+function favView(){
+  const list = channels.filter(c => favs.has(c.url));
+  if (!list.length) return '<div class="empty"><h2>Min lista är tom</h2><p>Lägg till filmer, serier och kanaler med ★ så hamnar de här.</p></div>';
+  return `<div class="pagehead"><h2>Min lista</h2></div>` +
+    row('Filmer', list.filter(c => TYPE(c) === 'movie')) + row('Serier', list.filter(c => TYPE(c) === 'series')) + row('Kanaler', list.filter(c => TYPE(c) === 'live'));
+}
+
+function searchView(){
+  return `<div class="pagehead"><h2>Sök</h2></div>
+    <input class="f searchbox" id="searchInput" type="text" placeholder="Sök filmer, serier och kanaler…" autocomplete="off"><div id="searchRes"></div>`;
+}
+let searchTimer = null;
+function renderSearch(){
+  const q = vstate.search.q.trim().toLowerCase(), box = $('searchRes'); if (!box) return;
+  if (q.length < 2) { box.innerHTML = '<div class="empty" style="padding-top:30px">Skriv minst två bokstäver.</div>'; return; }
+  const hit = c => c.name.toLowerCase().includes(q);
+  const res = t => sortList(byType[t].filter(hit), t === 'live' ? 'num' : 'pop');
+  const html = row('Filmer', res('movie')) + row('Serier', res('series')) + row('Kanaler', res('live'));
+  box.innerHTML = html || '<div class="empty" style="padding-top:30px">Inga träffar.</div>';
+}
+
+function setView(v){
+  view = v; renderView(); $('main').scrollTop = 0;
+  if (v === 'search') setTimeout(() => $('searchInput')?.focus(), 50);
+}
+document.querySelectorAll('.nav').forEach(b => b.onclick = () => setView(b.dataset.view));
+$('main').addEventListener('scroll', () => $('topnav').classList.toggle('solid', $('main').scrollTop > 40), { passive: true });
+$('menuBtn').onclick = () => openDialog('menuDialog');
+
+// Alla klick i vyerna
+let lastCard = null;
+$('view').addEventListener('click', e => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.openPl) { renderPlRows(); openDialog('plDialog'); return; }
+  if (t.dataset.more !== undefined) {
+    const [type, cat] = t.dataset.more.split('|');
+    if (type === 'fav') return setView('fav');
+    vstate[type].cat = cat || ''; setView(type); return;
+  }
+  if (t.dataset.cat !== undefined) { vstate[view].cat = t.dataset.cat; vstate[view].limit = view === 'live' ? 200 : 120; renderView(); setTimeout(() => document.querySelector(`.chip.on`)?.focus(), 0); return; }
+  if (t.dataset.loadmore) { vstate[view].limit += view === 'live' ? 200 : 120; const y = $('main').scrollTop; renderView(); $('main').scrollTop = y; return; }
+  if (t.dataset.play !== undefined) { const c = channels[+t.dataset.play]; lastCard = t; c.seriesId && curXt ? openDetail(c) : play(+t.dataset.play); return; }
+  if (t.dataset.info !== undefined) { lastCard = t; openDetail(channels[+t.dataset.info]); return; }
+  if (t.dataset.i !== undefined) {
+    lastCard = t;
+    const c = channels[+t.dataset.i];
+    // Kö för kanalbyte: alla kort i samma rad/rutnät
+    const box = t.closest('.rowscroll, .grid');
+    queue = box ? [...box.querySelectorAll('[data-i]')].map(b => channels[+b.dataset.i]) : [c];
+    if (TYPE(c) === 'live') play(+t.dataset.i); else openDetail(c);
+  }
+});
+$('view').addEventListener('change', e => {
+  if (e.target.id === 'sortSel') { store.set('iptv_sort_' + view, e.target.value); renderView(); $('sortSel')?.focus(); }
+});
+$('view').addEventListener('input', e => {
+  if (e.target.id === 'searchInput') { vstate.search.q = e.target.value; clearTimeout(searchTimer); searchTimer = setTimeout(renderSearch, 200); }
+});
+
+// ====== DETALJSIDA ======
+let serData = null, serItem = null, detailItem = null;
+function openDetail(c){
+  detailItem = c;
+  const bg = $('dBg'); bg.style.backgroundImage = c.logo ? `url('${cssUrl(c.logo)}')` : ''; $('dHero').classList.remove('backdrop');
+  $('dPoster').src = c.logo || ''; $('dPoster').classList.toggle('hidden', !c.logo);
+  $('dTitle').textContent = c.name; $('dMeta').innerHTML = metaLine(c);
+  $('dPlot').textContent = ''; msg($('serMsg'), '');
+  updateFavBtns();
+  const isSeries = !!(c.seriesId && curXt);
+  $('dSeries').classList.toggle('hidden', !isSeries);
+  $('dPlay').textContent = isSeries ? '▶ Spela avsnitt 1' : (hist[c.url] ? '▶ Spela igen' : '▶ Spela');
+  openDialog('detail');
+  setTimeout(() => $('dPlay').focus(), 60);
+  if (isSeries) loadSeries(c);
+  else if (curXt && c.vodId) loadVodInfo(c);
+}
+function setBackdrop(info){
+  const b = (info.backdrop_path || [])[0] || info.backdrop;
+  if (b) { $('dBg').style.backgroundImage = `url('${cssUrl(b)}')`; $('dHero').classList.add('backdrop'); }
+}
+async function loadVodInfo(c){
+  try {
+    const r = await xtApi(curXt, 'get_vod_info&vod_id=' + encodeURIComponent(c.vodId));
+    if (detailItem !== c) return;
+    const info = r.info || {};
+    $('dPlot').textContent = info.plot || info.description || '';
+    const extra = [info.genre, info.duration, info.director && 'Regi: ' + info.director].filter(Boolean).map(esc).join(' · ');
+    if (extra) $('dMeta').innerHTML = metaLine(c) + '<br>' + extra;
+    setBackdrop(info);
+  } catch(_) {}
+}
+async function loadSeries(c){
+  serItem = c; serData = null;
   $('serSeason').innerHTML = ''; $('serEps').innerHTML = ''; msg($('serMsg'), 'Hämtar avsnitt…');
-  openDialog('serDialog');
   try {
     serData = await xtApi(curXt, 'get_series_info&series_id=' + encodeURIComponent(c.seriesId));
+    if (detailItem !== c) return;
     const eps = serData.episodes || {};
     const seasons = Object.keys(eps).sort((a, b) => a - b);
     if (!seasons.length) return msg($('serMsg'), 'Inga avsnitt hittades.', true);
-    if (serData.info?.plot) $('serMeta').textContent = metaLine(c) + ' — ' + serData.info.plot;
+    const info = serData.info || {};
+    $('dPlot').textContent = info.plot || '';
+    if (info.genre) $('dMeta').innerHTML = metaLine(c) + '<br>' + esc(info.genre);
+    setBackdrop(info);
     $('serSeason').innerHTML = seasons.map(n => `<option value="${n}">Säsong ${n} (${eps[n].length} avsnitt)</option>`).join('');
+    // Fortsätt där du var: första osedda avsnittet
+    let next = null;
+    for (const n of seasons) { const e = eps[n].find(ep => !hist[epUrl(ep)]); if (e) { next = [n, e]; break; } }
+    if (next) $('serSeason').value = next[0];
+    $('dPlay').textContent = next ? `▶ Spela S${next[0]} A${next[1].episode_num || 1}` : '▶ Spela från början';
     msg($('serMsg'), '');
     renderEpisodes();
-    $('serSeason').focus();
   } catch (e) { msg($('serMsg'), 'Kunde inte hämta avsnitt (' + e.message + ').', true); }
 }
 function renderEpisodes(){
-  const list = (serData.episodes || {})[$('serSeason').value] || [];
-  $('serEps').innerHTML = list.map((ep, i) => {
-    const url = epUrl(ep);
-    return `<button class="f ghost" type="button" data-ep="${i}">${hist[url] ? '✓ ' : ''}${ep.episode_num || i + 1}. ${esc(ep.title || 'Avsnitt')}</button>`;
-  }).join('');
+  const list = (serData?.episodes || {})[$('serSeason').value] || [];
+  $('serEps').innerHTML = list.map((ep, i) => `<button class="f" type="button" data-ep="${i}">
+    <span class="epn">${hist[epUrl(ep)] ? '✓' : ep.episode_num || i + 1}</span>${esc(ep.title || 'Avsnitt ' + (i + 1))}</button>`).join('');
 }
 function epUrl(ep){
   return `${curXt.s}/series/${encodeURIComponent(curXt.u)}/${encodeURIComponent(curXt.p)}/${ep.id}.${ep.container_extension || 'mp4'}`;
 }
+function playEpisode(season, i){
+  const ep = serData.episodes[season][i];
+  const item = { name: `${serItem.name} · S${season} A${ep.episode_num || i + 1} ${ep.title || ''}`, url: epUrl(ep), type: 'movie', parent: serItem };
+  remember(serItem); remember(item);
+  closeDialogs(); openPlayer(item); startStream(item);
+}
 $('serSeason').onchange = renderEpisodes;
-$('serEps').onclick = e => {
-  const b = e.target.closest('[data-ep]'); if (!b) return;
-  const ep = serData.episodes[$('serSeason').value][+b.dataset.ep];
-  remember(serItem);
-  closeDialogs();
-  startStream({ name: `${serItem.name} – S${$('serSeason').value}E${ep.episode_num || +b.dataset.ep + 1} ${ep.title || ''}`, url: epUrl(ep), type: 'movie' });
+$('serEps').onclick = e => { const b = e.target.closest('[data-ep]'); if (b) playEpisode($('serSeason').value, +b.dataset.ep); };
+$('dPlay').onclick = () => {
+  const c = detailItem; if (!c) return;
+  if (c.seriesId && curXt) {
+    if (!serData) return;
+    const s = $('serSeason').value, eps = serData.episodes[s] || [];
+    let i = eps.findIndex(ep => !hist[epUrl(ep)]); if (i < 0) i = 0;
+    if (eps.length) playEpisode(s, i);
+  } else { closeDialogs(); play(idxOf.get(c)); }
 };
-
-$('list').addEventListener('click', e => {
-  const f = e.target.closest('[data-fav]');
-  if (f) { toggleFav(shown[+f.dataset.fav]); return; }
-  const li = e.target.closest('li[data-i]');
-  if (!li) return;
-  const c = shown[+li.dataset.i];
-  if (c.seriesId && curXt) openSeries(c); else play(channels.indexOf(c));
-});
-$('search').oninput = render;
-$('group').onchange = () => { render(); $('list').scrollTop = 0; };
+$('dFav').onclick = () => detailItem && toggleFav(detailItem);
+function updateFavBtns(){
+  if (detailItem) $('dFav').textContent = favs.has(detailItem.url) ? '✓ I min lista' : '+ Min lista';
+  const pc = nowItem?.parent || nowItem;
+  $('pFav').textContent = pc && favs.has(pc.url) ? '★' : '☆';
+  document.querySelectorAll('.card[data-i]').forEach(b => b.classList.toggle('isfav', favs.has(channels[+b.dataset.i]?.url)));
+  if (view === 'fav') renderView();
+}
 
 // ====== UPPSPELNING ======
-function status(t, err){ msg($('status'), t, err); }
+function status(t, err){ msg($('status'), $('player').classList.contains('hidden') ? t : '', err); msg($('pstatus'), $('player').classList.contains('hidden') ? '' : t, err); }
 function stop(){
   if (hls) { hls.destroy(); hls = null; }
   if (ts) { try { ts.destroy(); } catch(_) {} ts = null; }
@@ -741,11 +993,12 @@ const video = $('video');
 function play(i){
   if (i < 0 || i >= channels.length) return;
   current = i; const c = channels[i];
-  if (c.seriesId && curXt) { openSeries(c); return; }
+  if (c.seriesId && curXt) { openDetail(c); return; }
+  if (!queue.includes(c)) queue = TYPE(c) === 'live' ? sortList(byType.live, 'num') : [c];
   remember(c);
   saveSettings({ last_channel_url: c.url, last_channel_name: c.name });
+  openPlayer(c);
   startStream(c);
-  render();
 }
 function startStream(c){
   stop();
@@ -784,16 +1037,49 @@ video.addEventListener('playing', () => status(''));
 video.addEventListener('waiting', () => status('Buffrar…'));
 video.addEventListener('error', () => { if (!hls && !ts && video.getAttribute('src')) status('Kunde inte spela den här strömmen.', true); });
 
-function step(d){
-  if (!shown.length) return;
-  let pos = shown.indexOf(channels[current]);
-  pos = (pos + d + shown.length) % shown.length;
-  play(channels.indexOf(shown[pos]));
+// ====== SPELARVY ======
+let queue = [], nowItem = null, idleTimer = null;
+function openPlayer(c){
+  nowItem = c;
+  const live = TYPE(c) === 'live';
+  $('prevBtn').classList.toggle('hidden', !live); $('nextBtn').classList.toggle('hidden', !live);
+  $('now').textContent = c.name;
+  $('player').classList.remove('hidden');
+  updateFavBtns(); wake();
+  if (NATIVE || matchMedia('(pointer:coarse)').matches) enterFs();
 }
-function fullscreen(){
-  const el = video;
-  if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-  else (el.requestFullscreen || el.webkitRequestFullscreen || el.webkitEnterFullscreen)?.call(el)?.catch?.(() => {});
+function closePlayer(){
+  stop(); exitFs();
+  $('player').classList.add('hidden'); status('');
+  const i = lastCard?.dataset.i;
+  renderView();
+  const el = i !== undefined && document.querySelector(`.card[data-i="${i}"]`);
+  (el || document.querySelector('.nav.on'))?.focus();
+}
+function enterFs(){
+  const el = $('player');
+  try { (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el)?.then?.(() => screen.orientation?.lock?.('landscape').catch(() => {}))?.catch?.(() => {}); } catch(_) {}
+}
+function exitFs(){
+  try { if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document)?.catch?.(() => {}); } catch(_) {}
+}
+function fullscreen(){ (document.fullscreenElement || document.webkitFullscreenElement) ? exitFs() : enterFs(); }
+function wake(){
+  $('player').classList.remove('idle');
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => { if (!video.paused) $('player').classList.add('idle'); }, 3500);
+}
+['mousemove','touchstart','click'].forEach(ev => $('player').addEventListener(ev, wake, { passive: true }));
+video.addEventListener('pause', wake);
+$('pBack').onclick = closePlayer;
+$('pFav').onclick = () => { const c = nowItem?.parent || nowItem; if (c) toggleFav(c); };
+
+function step(d){
+  const c = channels[current]; if (!c || TYPE(c) !== 'live') return;
+  const list = queue.filter(x => TYPE(x) === 'live');
+  const q = list.length > 1 ? list : sortList(byType.live, 'num');
+  let pos = q.indexOf(c); pos = (pos + d + q.length) % q.length;
+  play(idxOf.get(q[pos]));
 }
 $('prevBtn').onclick = () => step(-1);
 $('nextBtn').onclick = () => step(1);
@@ -803,82 +1089,95 @@ $('fullBtn').onclick = fullscreen;
 const KEY = { LEFT: [37], UP: [38], RIGHT: [39], DOWN: [40], OK: [13],
   BACK: [461, 10009, 27, 8], CH_UP: [427, 33], CH_DOWN: [428, 34], PLAYPAUSE: [415, 19, 10252, 179, 32] };
 const is = (k, name) => KEY[name].includes(k);
-if (IS_TV) $('tvHint').textContent = 'Pilar: navigera · OK: välj · CH+/CH−: byt kanal · Tillbaka: avsluta helskärm/stäng';
+if (IS_TV) $('tvHint').textContent = 'OK: paus · ▲▼ / CH±: byt kanal · ◀▶: spola · Tillbaka: stäng';
 try { // Samsung Tizen: be om fjärrkontrollens extra knappar
   ['ChannelUp','ChannelDown','MediaPlayPause','MediaPlay','MediaPause'].forEach(k => tizen.tvinputdevice.registerKey(k));
 } catch(_) {}
 
+const openDialogEl = () => [...document.querySelectorAll('.overlay:not(.hidden):not(#player)')].pop();
 function focusables(){
-  const scope = document.querySelector('.overlay:not(.hidden)') || document.querySelector('#loginView:not(.hidden), #codeView:not(.hidden), #app:not(.hidden)');
+  const scope = openDialogEl() || document.querySelector('#loginView:not(.hidden), #codeView:not(.hidden), #app:not(.hidden)');
   return scope ? [...scope.querySelectorAll('.f')].filter(el => el.offsetParent !== null && !el.disabled) : [];
 }
 function moveFocus(dir){
   const cur = document.activeElement, all = focusables();
-  if (!all.includes(cur)) { all[0]?.focus(); return; }
-  // Snabbväg i kanallistan: upp/ned går till grannen direkt
-  if (cur.matches('#list li') && (dir === 'up' || dir === 'down')) {
-    const nxt = dir === 'down' ? cur.nextElementSibling : cur.previousElementSibling;
-    if (nxt?.classList.contains('f')) { nxt.focus(); nxt.scrollIntoView({ block: 'nearest' }); return; }
+  if (!all.includes(cur)) { (all.find(el => el.classList.contains('card')) || all[0])?.focus(); return; }
+  // I en rad: vänster/höger går direkt till grannkortet
+  if (cur.classList.contains('card') && cur.parentElement.classList.contains('rowscroll') && (dir === 'left' || dir === 'right')) {
+    const nxt = dir === 'right' ? cur.nextElementSibling : cur.previousElementSibling;
+    if (nxt) { nxt.focus({ preventScroll: true }); nxt.scrollIntoView({ block: 'nearest', inline: 'nearest' }); return; }
+    return;
   }
   const a = cur.getBoundingClientRect(), ax = a.left + a.width / 2, ay = a.top + a.height / 2;
   let best = null, bestScore = Infinity;
   for (const el of all) {
     if (el === cur) continue;
     const b = el.getBoundingClientRect(), bx = b.left + b.width / 2, by = b.top + b.height / 2;
-    const dx = bx - ax, dy = by - ay;
     const ok = dir === 'right' ? b.left >= a.right - 4 : dir === 'left' ? b.right <= a.left + 4 :
                dir === 'down' ? b.top >= a.bottom - 4 : b.bottom <= a.top + 4;
     if (!ok) continue;
-    const main = (dir === 'left' || dir === 'right') ? Math.abs(dx) : Math.abs(dy);
-    const cross = (dir === 'left' || dir === 'right') ? Math.abs(dy) : Math.abs(dx);
-    const score = main + cross * 3;
+    const horiz = dir === 'left' || dir === 'right';
+    // Upp/ned mellan rader: välj kortet närmast till vänster i synfältet, inte långt bort i raden
+    const crossX = horiz ? 0 : Math.abs(Math.max(0, Math.min(b.left, window.innerWidth)) - Math.max(0, a.left));
+    const main = horiz ? Math.abs(bx - ax) : Math.abs(by - ay);
+    const cross = horiz ? Math.abs(by - ay) : crossX;
+    const offscreen = (b.right < 0 || b.left > window.innerWidth) ? 5000 : 0;
+    const penalty = el.classList.contains('more') ? 400 : 0; // "Visa alla" bara om man siktar dit
+    const score = main + cross * 2 + offscreen + penalty;
     if (score < bestScore) { bestScore = score; best = el; }
   }
-  if (best) { best.focus(); best.scrollIntoView?.({ block: 'nearest' }); }
+  if (best) { best.focus({ preventScroll: true }); best.scrollIntoView({ block: dir === 'up' || dir === 'down' ? 'center' : 'nearest', inline: 'nearest' }); }
 }
 
 document.addEventListener('keydown', e => {
   const k = e.keyCode, t = e.target;
   const typing = t.matches?.('input[type=text],input[type=email],input[type=password],input[type=url]');
-  const isFull = document.fullscreenElement || document.webkitFullscreenElement;
+  const inPlayer = !$('player').classList.contains('hidden') && !openDialogEl();
 
-  if (e.repeat && is(k, 'OK')) { e.preventDefault(); return; } // hållen OK-knapp = favorit, inte upprepade klick
+  if (e.repeat && is(k, 'OK')) { e.preventDefault(); return; } // hållen OK = Min lista
   if (is(k, 'BACK')) {
     if (k === 8 && typing) return;
-    if (isFull) { e.preventDefault(); fullscreen(); return; }
-    if (closeDialogs()) { e.preventDefault(); return; }
-    if (k !== 8 && k !== 27) e.preventDefault(); // stanna kvar i appen på TV:n
+    e.preventDefault();
+    if (closeDialogs()) return;
+    if (!$('player').classList.contains('hidden')) { closePlayer(); return; }
+    if (!$('app').classList.contains('hidden') && view !== 'home') { setView('home'); document.querySelector('.nav.on')?.focus(); }
     return;
   }
-  if (!$('app').classList.contains('hidden') && !document.querySelector('.overlay:not(.hidden)')) {
-    if (is(k, 'CH_UP') && !typing) { e.preventDefault(); step(-1); return; }
-    if (is(k, 'CH_DOWN') && !typing) { e.preventDefault(); step(1); return; }
-    if (is(k, 'PLAYPAUSE') && !typing && !(k === 32 && t.matches('button,li'))) {
-      e.preventDefault(); video.paused ? video.play().catch(() => {}) : video.pause(); return;
+  if (inPlayer) {
+    wake();
+    const live = TYPE(nowItem || {}) === 'live';
+    if (t.closest?.('.pbar') && (is(k, 'LEFT') || is(k, 'RIGHT') || is(k, 'OK'))) {
+      if (is(k, 'OK')) return; // knappen i listen hanterar klicket
+      e.preventDefault();
+      const btns = [...document.querySelectorAll('.pbar .f')].filter(b => b.offsetParent);
+      const i = btns.indexOf(t); btns[(i + (is(k, 'RIGHT') ? 1 : -1) + btns.length) % btns.length]?.focus(); return;
     }
-    if (isFull && (is(k, 'UP') || is(k, 'DOWN'))) { e.preventDefault(); step(is(k, 'UP') ? -1 : 1); return; }
-    if (k === 70 && !typing) { fullscreen(); return; } // F
+    if (is(k, 'CH_UP') || (live && is(k, 'UP') && !t.closest?.('.pbar'))) { e.preventDefault(); step(-1); return; }
+    if (is(k, 'CH_DOWN') || (live && is(k, 'DOWN'))) { e.preventDefault(); step(1); return; }
+    if (is(k, 'UP')) { e.preventDefault(); $('pBack').focus(); return; }
+    if (is(k, 'DOWN')) { e.preventDefault(); t.blur?.(); return; }
+    if (!live && (is(k, 'LEFT') || is(k, 'RIGHT'))) { e.preventDefault(); video.currentTime = Math.max(0, video.currentTime + (is(k, 'RIGHT') ? 10 : -10)); return; }
+    if (is(k, 'OK') || is(k, 'PLAYPAUSE')) { e.preventDefault(); video.paused ? video.play().catch(() => {}) : video.pause(); return; }
+    return;
   }
+  if (k === 70 && !typing && nowItem && !$('player').classList.contains('hidden')) { fullscreen(); return; }
   if (typing && (is(k, 'LEFT') || is(k, 'RIGHT'))) return; // flytta markören i textfält
+  if (typing && is(k, 'DOWN') && t.id === 'searchInput') { e.preventDefault(); document.querySelector('#searchRes .card')?.focus(); return; }
   if (is(k, 'UP')) { e.preventDefault(); moveFocus('up'); }
   else if (is(k, 'DOWN')) { e.preventDefault(); moveFocus('down'); }
   else if (is(k, 'LEFT')) { e.preventDefault(); moveFocus('left'); }
   else if (is(k, 'RIGHT')) { e.preventDefault(); moveFocus('right'); }
-  else if (is(k, 'OK') && t.matches?.('li.f, label.f')) {
-    e.preventDefault();
-    if (t.matches('label.f')) t.querySelector('input')?.click();
-    else if (IS_TV && channels[current] === shown[+t.dataset.i]) fullscreen();
-    else t.click();
-  }
+  else if (is(k, 'OK') && t.matches?.('label.f')) { e.preventDefault(); t.querySelector('input')?.click(); }
 });
-// Långt tryck på OK på en kanal = favorit (TV)
+// Långt tryck på OK på ett kort = lägg till i / ta bort från Min lista
 let okDown = 0;
 document.addEventListener('keydown', e => { if (e.keyCode === 13 && !e.repeat) okDown = Date.now(); });
 document.addEventListener('keyup', e => {
   if (e.keyCode === 13 && Date.now() - okDown > 700) {
-    const li = document.activeElement?.closest?.('#list li[data-i]');
-    if (li) toggleFav(shown[+li.dataset.i]);
+    const b = document.activeElement?.closest?.('.card[data-i]');
+    if (b) { const c = channels[+b.dataset.i]; toggleFav(c); status(favs.has(c.url) ? '★ Tillagd i Min lista' : 'Borttagen från Min lista'); setTimeout(() => status(''), 1500); }
   }
+
 });
 </script>
 </body>
