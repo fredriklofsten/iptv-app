@@ -85,6 +85,7 @@
   .pagehead{padding:84px 4% 6px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
   .pagehead h2{margin:0;font-size:1.8em}
   .pagehead select{width:auto;margin-left:auto}
+  .pagehead select+select{margin-left:0}
   .chips{display:flex;gap:8px;overflow-x:auto;padding:8px 4% 14px;scrollbar-width:none}
   .chips::-webkit-scrollbar{display:none}
   .chip{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#ddd;border-radius:999px;padding:.4em 1em;flex-shrink:0}
@@ -721,11 +722,11 @@ async function loadXtream(x){
       ...live.map(s => ({ type: 'live', name: s.name, logo: s.stream_icon || '', group: cm[String(s.category_id)] || 'Övrigt',
         num: +s.num || 0, added: +s.added || 0, sid: s.stream_id, url: `${x.s}/live/${path}/${s.stream_id}.m3u8` })),
       ...arr(vod).map(s => ({ type: 'movie', name: s.name, logo: s.stream_icon || '', group: vm[String(s.category_id)] || 'Övrigt',
-        added: +s.added || 0, rating: rating(s), year: s.year || '', vodId: s.stream_id,
+        added: +s.added || 0, rating: rating(s), year: s.year || '', vodId: s.stream_id, genre: s.genre || '',
         url: `${x.s}/movie/${path}/${s.stream_id}.${s.container_extension || 'mp4'}` })),
       ...arr(series).map(s => ({ type: 'series', name: s.name, logo: s.cover || '', group: sm[String(s.category_id)] || 'Övrigt',
         added: +s.last_modified || (Date.parse(s.releaseDate || s.release_date) / 1000) || 0, rating: rating(s),
-        year: (s.releaseDate || s.release_date || '').slice(0, 4), seriesId: s.series_id, url: `xtseries:${s.series_id}` }))
+        year: (s.releaseDate || s.release_date || '').slice(0, 4), seriesId: s.series_id, genre: s.genre || '', url: `xtseries:${s.series_id}` }))
     ];
   } catch (e) {
     // Reserv: hämta som vanlig M3U-lista
@@ -786,7 +787,7 @@ function remember(c){ hist[c.url] = Date.now(); store.set('iptv_hist', hist); }
 
 const TYPE = c => c.type || 'live';
 let view = 'home', byType = { live: [], movie: [], series: [] }, idxOf = new Map();
-const vstate = { live: { cat: '', limit: 200 }, movie: { cat: '', limit: 120 }, series: { cat: '', limit: 120 }, fav: {}, search: { q: '' }, ppv: { sport: '' } };
+const vstate = { live: { cat: '', limit: 200 }, movie: { cat: '', genre: '', limit: 120 }, series: { cat: '', genre: '', limit: 120 }, fav: {}, search: { q: '' }, ppv: { sport: '' } };
 
 // Anropas när en spellista har lästs in
 function setGroups(){
@@ -799,7 +800,8 @@ function setGroups(){
   document.querySelector('.nav[data-view=ppv]').classList.toggle('hidden', !ppvList.length);
   if (view === 'ppv' && !ppvList.length) view = 'home';
   if (byType[view] && !byType[view].length) view = 'home';
-  ['live','movie','series'].forEach(t => vstate[t].cat = '');
+  ['live','movie','series'].forEach(t => { vstate[t].cat = ''; vstate[t].genre = ''; });
+  [...byType.movie, ...byType.series].forEach(assignGenres);
 }
 // Ritar om den aktuella vyn
 function render(){ renderView(); }
@@ -901,30 +903,73 @@ function homeView(){
   html += row('Nya serier', sortList(s, 'new'), 'series|');
   if (s.some(c => c.rating)) html += row('Populära serier', sortList(s, 'pop'), 'series|');
   html += row('Live-TV', sortList(l, 'num'), 'live|');
-  categories(m).slice(0, 6).forEach(([g]) => html += row('Filmer: ' + g, sortList(m.filter(c => c.group === g), 'new'), 'movie|' + g));
+  genreCounts(m).slice(0, 6).forEach(([g]) => html += row(genreIcon(g) + ' ' + g, sortList(m.filter(c => c.genres.includes(g)), 'new'), 'movie|g:' + g));
+  genreCounts(s).slice(0, 3).forEach(([g]) => html += row(genreIcon(g) + ' ' + g + ' – serier', sortList(s.filter(c => c.genres.includes(g)), 'new'), 'series|g:' + g));
+  if (!genreCounts(m).length) categories(m).slice(0, 6).forEach(([g]) => html += row('Filmer: ' + g, sortList(m.filter(c => c.group === g), 'new'), 'movie|' + g));
   categories(l).slice(0, 4).forEach(([g]) => html += row('Kanaler: ' + g, sortList(l.filter(c => c.group === g), 'num'), 'live|' + g));
   return html;
+}
+
+// ====== GENRER ======
+const GENRES = [
+  ['Action','💥',/action|actie|acci[oó]n/i], ['Komedi','😂',/comed|komedi|kom[öo]die|humor|comedia/i], ['Drama','🎭',/drama/i],
+  ['Sci-fi','🚀',/sci.?fi|science.?fiction|\bscifi\b|rymd/i], ['Äventyr','🗺️',/advent|äventyr|abenteuer|aventura/i],
+  ['Skräck','👻',/horror|skr[äa]ck|terror|gyser/i], ['Thriller','🔪',/thriller|spänning/i], ['Krim','🕵️',/crime|krim|deckare|mystery|myster|polis/i],
+  ['Romantik','❤️',/roman(ce|tik|tic|tisch)/i], ['Fantasy','🧙',/fantasy|fantasi/i], ['Animerat','🎨',/anim|tecknad|cartoon|anime/i],
+  ['Barn & familj','🧸',/\bkids?\b|barn|family|familj|children|kinder/i], ['Dokumentär','📚',/docu|dokument/i], ['Krig','🎖️',/\bwar\b|krig|military|militär/i],
+  ['Western','🤠',/western/i], ['Musik','🎵',/music|musik|musical/i], ['Historia','🏛️',/histor|biograf|biopic/i], ['Sport','🏆',/\bsport/i],
+  ['Reality','📺',/reality|dokusåpa/i], ['Svenskt','🇸🇪',/\bsvensk|swedish|\bse[:|]|\bnordic|nordisk/i]
+];
+const genreIcon = n => (GENRES.find(g => g[0] === n) || [0, '🎬'])[1];
+function assignGenres(c){ const txt = (c.genre || '') + ' | ' + c.group; c.genres = GENRES.filter(g => g[2].test(txt)).map(g => g[0]); }
+function genreCounts(list){
+  const n = {}; list.forEach(c => (c.genres || []).forEach(g => n[g] = (n[g] || 0) + 1));
+  return Object.entries(n).sort((a, b) => b[1] - a[1]);
 }
 
 function typeView(t){
   const st = vstate[t], list = byType[t], by = sortOf(t);
   const title = { live: 'Live-TV', movie: 'Filmer', series: 'Serier' }[t];
   const cats = categories(list).sort((a, b) => a[0].localeCompare(b[0], 'sv'));
-  let html = `<div class="pagehead"><h2>${title}</h2>
-    <select class="f" id="sortSel" title="Sortera">${SORTS[t].map(([v, n]) => `<option value="${v}" ${v === by ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
-    <div class="chips"><button class="f chip ${!st.cat ? 'on' : ''}" type="button" data-cat="">Alla</button>
-    <button class="f chip ${st.cat === '__fav' ? 'on' : ''}" type="button" data-cat="__fav">★ Min lista</button>
-    ${cats.map(([g, n]) => `<button class="f chip ${st.cat === g ? 'on' : ''}" type="button" data-cat="${esc(g)}">${esc(g)} <small>${n}</small></button>`).join('')}</div>`;
-  // Filmer/serier utan vald kategori: rader som på en streamingtjänst
-  if (t !== 'live' && !st.cat) {
-    html += row('Senast tillagda', sortList(list, 'new'));
-    if (list.some(c => c.year)) html += row('Nyast efter utgivningsår', sortList(list.filter(c => c.year), 'year'));
-    if (list.some(c => c.rating)) html += row('Populärast', sortList(list, 'pop'));
-    categories(list).slice(0, 30).forEach(([g]) => html += row(g, sortList(list.filter(c => c.group === g), by), t + '|' + g));
+  const sortSel = `<select class="f" id="sortSel" title="Sortera">${SORTS[t].map(([v, n]) => `<option value="${v}" ${v === by ? 'selected' : ''}>${n}</option>`).join('')}</select>`;
+
+  if (t === 'live') {
+    let html = `<div class="pagehead"><h2>${title}</h2>${sortSel}</div>
+      <div class="chips"><button class="f chip ${!st.cat ? 'on' : ''}" type="button" data-cat="">Alla</button>
+      <button class="f chip ${st.cat === '__fav' ? 'on' : ''}" type="button" data-cat="__fav">★ Min lista</button>
+      ${cats.map(([g, n]) => `<button class="f chip ${st.cat === g ? 'on' : ''}" type="button" data-cat="${esc(g)}">${esc(g)} <small>${n}</small></button>`).join('')}</div>`;
+    const items = sortList(list.filter(c => !st.cat || (st.cat === '__fav' ? favs.has(c.url) : c.group === st.cat)), by);
+    return html + (items.length ? grid(items, st.limit, true) : '<div class="empty" style="padding-top:30px">Inget här ännu.</div>');
+  }
+
+  // Filmer och serier: genrer som knappar, leverantörens kategorier i en lista
+  const genres = genreCounts(list);
+  let html = `<div class="pagehead"><h2>${title}${st.genre ? ' · ' + genreIcon(st.genre) + ' ' + esc(st.genre) : ''}</h2>${sortSel}
+    <select class="f" id="catSel" title="Kategori"><option value="">Alla kategorier</option><option value="__fav" ${st.cat === '__fav' ? 'selected' : ''}>★ Min lista</option>
+    ${cats.map(([g, n]) => `<option value="${esc(g)}" ${st.cat === g ? 'selected' : ''}>${esc(g)} (${n})</option>`).join('')}</select></div>
+    <div class="chips"><button class="f chip ${!st.genre ? 'on' : ''}" type="button" data-genre="">Alla genrer</button>
+    ${genres.map(([g, n]) => `<button class="f chip ${st.genre === g ? 'on' : ''}" type="button" data-genre="${esc(g)}">${genreIcon(g)} ${esc(g)} <small>${n}</small></button>`).join('')}</div>`;
+
+  const inGenre = list.filter(c => !st.genre || (c.genres || []).includes(st.genre));
+  const word = t === 'movie' ? 'filmer' : 'serier';
+
+  if (st.cat) {
+    const items = sortList(inGenre.filter(c => st.cat === '__fav' ? favs.has(c.url) : c.group === st.cat), by);
+    return html + (items.length ? grid(items, st.limit) : '<div class="empty" style="padding-top:30px">Inget här ännu.</div>');
+  }
+  const suffix = st.genre ? ' – ' + st.genre.toLowerCase() : '';
+  if (inGenre.some(c => c.year)) html += row('Nyast' + suffix, sortList(inGenre.filter(c => c.year), 'year'));
+  if (inGenre.some(c => c.added)) html += row('Senast tillagda' + suffix, sortList(inGenre, 'new'));
+  if (inGenre.some(c => c.rating)) html += row('Populärast' + suffix, sortList(inGenre, 'pop'));
+  if (!st.genre) {
+    // En rad per genre, sedan leverantörens kategorier
+    genres.forEach(([g]) => html += row(genreIcon(g) + ' ' + g, sortList(list.filter(c => c.genres.includes(g)), by), t + '|g:' + g));
+    categories(list).slice(0, 15).forEach(([g]) => html += row(g, sortList(list.filter(c => c.group === g), by), t + '|' + g));
     return html;
   }
-  const items = sortList(list.filter(c => !st.cat || (st.cat === '__fav' ? favs.has(c.url) : c.group === st.cat)), by);
-  return html + (items.length ? grid(items, st.limit, t === 'live') : '<div class="empty" style="padding-top:30px">Inget här ännu.</div>');
+  const sortName = (SORTS[t].find(([v]) => v === by) || [0, ''])[1].toLowerCase();
+  html += `<div class="rowhead" style="margin-top:8px"><h3>Alla ${word} – ${sortName}</h3></div>`;
+  return html + grid(sortList(inGenre, by), st.limit);
 }
 
 function favView(){
@@ -966,8 +1011,10 @@ $('view').addEventListener('click', e => {
   if (t.dataset.more !== undefined) {
     const [type, cat] = t.dataset.more.split('|');
     if (type === 'fav') return setView('fav');
-    vstate[type].cat = cat || ''; setView(type); return;
+    if ((cat || '').startsWith('g:')) { vstate[type].genre = cat.slice(2); vstate[type].cat = ''; } else { vstate[type].cat = cat || ''; vstate[type].genre = ''; }
+    setView(type); return;
   }
+  if (t.dataset.genre !== undefined) { vstate[view].genre = t.dataset.genre; vstate[view].cat = ''; vstate[view].limit = 120; renderView(); setTimeout(() => document.querySelector('.chip.on')?.focus(), 0); return; }
   if (t.dataset.cat !== undefined) { vstate[view].cat = t.dataset.cat; vstate[view].limit = view === 'live' ? 200 : 120; renderView(); setTimeout(() => document.querySelector(`.chip.on`)?.focus(), 0); return; }
   if (t.dataset.loadmore) { vstate[view].limit += view === 'live' ? 200 : 120; const y = $('main').scrollTop; renderView(); $('main').scrollTop = y; return; }
   if (t.dataset.play !== undefined) { const c = channels[+t.dataset.play]; lastCard = t; c.seriesId && curXt ? openDetail(c) : play(+t.dataset.play); return; }
@@ -982,6 +1029,7 @@ $('view').addEventListener('click', e => {
   }
 });
 $('view').addEventListener('change', e => {
+  if (e.target.id === 'catSel') { vstate[view].cat = e.target.value; vstate[view].limit = 120; renderView(); $('catSel')?.focus(); return; }
   if (e.target.id === 'sortSel') { store.set('iptv_sort_' + view, e.target.value); renderView(); $('sortSel')?.focus(); }
 });
 $('view').addEventListener('input', e => {
@@ -1159,6 +1207,7 @@ async function loadVodInfo(c){
     $('dPlot').textContent = info.plot || info.description || '';
     const extra = [info.genre, info.duration, info.director && 'Regi: ' + info.director].filter(Boolean).map(esc).join(' · ');
     if (extra) $('dMeta').innerHTML = metaLine(c) + '<br>' + extra;
+    if (info.genre && !c.genre) { c.genre = info.genre; assignGenres(c); }
     setBackdrop(info);
   } catch(_) {}
 }
