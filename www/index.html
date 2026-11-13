@@ -993,7 +993,38 @@ function renderSearch(){
   box.innerHTML = html || '<div class="empty" style="padding-top:30px">Inga träffar.</div>';
 }
 
-function setView(v){
+// ====== TILLBAKA-HISTORIK ======
+let viewHistory = [], exitArmed = 0;
+function pushHist(){
+  viewHistory.push({ view, scroll: $('main').scrollTop, st: JSON.stringify(vstate[view] || {}) });
+  if (viewHistory.length > 30) viewHistory.shift();
+}
+// Ett steg tillbaka. Svarar false när det inte finns något att gå tillbaka till (startsidan).
+function goBack(){
+  if (closeDialogs()) return true;
+  if (!$('player').classList.contains('hidden')) { closePlayer(); return true; }
+  if ($('app').classList.contains('hidden')) return false;
+  const prev = viewHistory.pop();
+  if (prev) {
+    view = prev.view; if (vstate[view]) Object.assign(vstate[view], JSON.parse(prev.st));
+    renderView(); $('main').scrollTop = prev.scroll;
+    (document.querySelector('.chip.on') || document.querySelector('.nav.on'))?.focus();
+    return true;
+  }
+  if (view !== 'home') { view = 'home'; renderView(); $('main').scrollTop = 0; document.querySelector('.nav.on')?.focus(); return true; }
+  return false;
+}
+function backOrExit(){
+  if (goBack()) return;
+  if (Date.now() - exitArmed < 2500) { try { Capacitor.Plugins.App.exitApp(); } catch(_) {} return; }
+  exitArmed = Date.now();
+  status('Tryck tillbaka igen för att stänga appen'); setTimeout(() => status(''), 2500);
+}
+// Android: ta över telefonens/TV:ns tillbaka-knapp så att appen inte stängs direkt
+try { if (NATIVE) Capacitor.Plugins.App.addListener('backButton', backOrExit); } catch(_) {}
+
+function setView(v, noHist){
+  if (!noHist && v !== view) pushHist();
   view = v; renderView(); $('main').scrollTop = 0;
   if (v === 'search') setTimeout(() => $('searchInput')?.focus(), 50);
 }
@@ -1007,15 +1038,15 @@ $('view').addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
   if (t.dataset.openPl) { renderPlRows(); openDialog('plDialog'); return; }
   if (t.id === 'sportNotice') { lastCard = t; openUpcoming(); return; }
-  if (t.dataset.sport !== undefined) { vstate.ppv.sport = t.dataset.sport; renderView(); setTimeout(() => document.querySelector('.chip.on')?.focus(), 0); return; }
+  if (t.dataset.sport !== undefined) { pushHist(); vstate.ppv.sport = t.dataset.sport; renderView(); setTimeout(() => document.querySelector('.chip.on')?.focus(), 0); return; }
   if (t.dataset.more !== undefined) {
     const [type, cat] = t.dataset.more.split('|');
     if (type === 'fav') return setView('fav');
     if ((cat || '').startsWith('g:')) { vstate[type].genre = cat.slice(2); vstate[type].cat = ''; } else { vstate[type].cat = cat || ''; vstate[type].genre = ''; }
     setView(type); return;
   }
-  if (t.dataset.genre !== undefined) { vstate[view].genre = t.dataset.genre; vstate[view].cat = ''; vstate[view].limit = 120; renderView(); setTimeout(() => document.querySelector('.chip.on')?.focus(), 0); return; }
-  if (t.dataset.cat !== undefined) { vstate[view].cat = t.dataset.cat; vstate[view].limit = view === 'live' ? 200 : 120; renderView(); setTimeout(() => document.querySelector(`.chip.on`)?.focus(), 0); return; }
+  if (t.dataset.genre !== undefined) { pushHist(); vstate[view].genre = t.dataset.genre; vstate[view].cat = ''; vstate[view].limit = 120; renderView(); setTimeout(() => document.querySelector('.chip.on')?.focus(), 0); return; }
+  if (t.dataset.cat !== undefined) { pushHist(); vstate[view].cat = t.dataset.cat; vstate[view].limit = view === 'live' ? 200 : 120; renderView(); setTimeout(() => document.querySelector(`.chip.on`)?.focus(), 0); return; }
   if (t.dataset.loadmore) { vstate[view].limit += view === 'live' ? 200 : 120; const y = $('main').scrollTop; renderView(); $('main').scrollTop = y; return; }
   if (t.dataset.play !== undefined) { const c = channels[+t.dataset.play]; lastCard = t; c.seriesId && curXt ? openDetail(c) : play(+t.dataset.play); return; }
   if (t.dataset.info !== undefined) { lastCard = t; openDetail(channels[+t.dataset.info]); return; }
@@ -1029,7 +1060,7 @@ $('view').addEventListener('click', e => {
   }
 });
 $('view').addEventListener('change', e => {
-  if (e.target.id === 'catSel') { vstate[view].cat = e.target.value; vstate[view].limit = 120; renderView(); $('catSel')?.focus(); return; }
+  if (e.target.id === 'catSel') { pushHist(); vstate[view].cat = e.target.value; vstate[view].limit = 120; renderView(); $('catSel')?.focus(); return; }
   if (e.target.id === 'sortSel') { store.set('iptv_sort_' + view, e.target.value); renderView(); $('sortSel')?.focus(); }
 });
 $('view').addEventListener('input', e => {
@@ -1530,9 +1561,8 @@ document.addEventListener('keydown', e => {
   if (is(k, 'BACK')) {
     if (k === 8 && typing) return;
     e.preventDefault();
-    if (closeDialogs()) return;
-    if (!$('player').classList.contains('hidden')) { closePlayer(); return; }
-    if (!$('app').classList.contains('hidden') && view !== 'home') { setView('home'); document.querySelector('.nav.on')?.focus(); }
+    if (NATIVE) return; // i Android-appen sköts tillbaka av backButton ovan
+    goBack();
     return;
   }
   if (inPlayer) {
