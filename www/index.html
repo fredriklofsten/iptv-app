@@ -383,6 +383,15 @@
   </div>
 </div>
 
+<!-- Nästa avsnitt (efter inbyggda spelaren) -->
+<div id="nextDialog" class="overlay hidden">
+  <div class="card" style="text-align:center">
+    <div class="msg">Nästa avsnitt om <b id="ndCount">10</b> s</div>
+    <h2 id="ndTitle"></h2>
+    <div class="row"><button class="f play" type="button" id="ndGo">▶ Spela nu</button><button class="f ghost" type="button" id="ndCancel">Avbryt</button></div>
+  </div>
+</div>
+
 <!-- Välj TV -->
 <div id="castDialog" class="overlay hidden">
   <div class="card">
@@ -916,9 +925,9 @@ const store = { get(k, d){ try { return JSON.parse(localStorage.getItem(k)) ?? d
 let hist = store.get('iptv_hist', {});
 let pos = store.get('iptv_pos', {}), done = store.get('iptv_done', {});
 function trimMap(m, n){ const k = Object.keys(m); if (k.length > n) k.sort((a, b) => (m[a].at || m[a]) - (m[b].at || m[b])).slice(0, k.length - n).forEach(x => delete m[x]); }
-function savePos(c){
-  if (!c || TYPE(c) === 'live' || !video.duration || !isFinite(video.duration)) return;
-  const t = video.currentTime, d = video.duration;
+function savePos(c, tt, dd){
+  const t = tt ?? video.currentTime, d = dd ?? video.duration;
+  if (!c || TYPE(c) === 'live' || !d || !isFinite(d)) return;
   if (d - t < Math.max(60, d * 0.05)) { delete pos[c.url]; done[c.url] = Date.now(); trimMap(done, 2000); store.set(pk('done'), done); pushSync(); }
   else if (t > 30) pos[c.url] = { t, d, at: Date.now() };
   trimMap(pos, 500); store.set(pk('pos'), pos); pushSync();
@@ -1431,7 +1440,7 @@ function playEpisode(season, i){
   const item = { name: `${serItem.name} · S${season} A${ep.episode_num || i + 1} ${ep.title || ''}`, url: epUrl(ep), type: 'movie', parent: serItem };
   remember(serItem); remember(item);
   if (pendingCast) { closeDialogs(); castTo(item); return; }
-  closeDialogs(); hideNext(); openPlayer(item); startStream(item);
+  closeDialogs(); hideNext(); launch(item);
 }
 function nextEpisodeOf(ctx){
   const eps = ctx.serData.episodes, seasons = Object.keys(eps).sort((a, b) => a - b);
@@ -1456,7 +1465,7 @@ function startNextEpisode(){
   hideNext(); if (!epCtx) return;
   const n = nextEpisodeOf(epCtx); if (!n) return;
   serItem = epCtx.serItem; serData = epCtx.serData;
-  savePos(nowItem); playEpisode(n[0], n[1]);
+  if (!NativePlayer) savePos(nowItem); playEpisode(n[0], n[1]);
 }
 $('nextGo').onclick = startNextEpisode;
 $('nextCancel').onclick = () => { if (epCtx) epCtx.dismissed = true; hideNext(); };
@@ -1498,8 +1507,7 @@ function play(i){
   if (!queue.includes(c)) queue = TYPE(c) === 'live' ? sortList(byType.live, 'num') : [c];
   remember(c);
   saveSettings({ last_channel_url: c.url });
-  openPlayer(c);
-  startStream(c);
+  launch(c);
 }
 function startStream(c){
   stop();
@@ -1519,7 +1527,7 @@ function startStream(c){
   if (isTs && window.mpegts && mpegts.isSupported()){
     ts = mpegts.createPlayer({ type: 'mpegts', isLive: (c.type || 'live') === 'live', url });
     ts.attachMediaElement(video); ts.load();
-    ts.on(mpegts.Events.ERROR, () => status('Kunde inte spela strömmen. Den kan vara offline eller blockera webbläsare.', true));
+    ts.on(mpegts.Events.ERROR, () => liveFailed('Kunde inte spela strömmen. Den kan vara offline eller blockera webbläsare.'));
     video.play().catch(() => {});
   } else if (!nativeHls && window.Hls && Hls.isSupported() && !/\.(mp4|webm|mp3|aac)$/.test(lower)){
     hls = new Hls({ enableWorker: true, lowLatencyMode: true });
@@ -1529,7 +1537,7 @@ function startStream(c){
     hls.on(Hls.Events.ERROR, (_, d) => {
       if (!d.fatal) return;
       if (d.type === Hls.ErrorTypes.MEDIA_ERROR) { hls.recoverMediaError(); return; }
-      status('Kunde inte spela strömmen. Den kan vara offline eller blockera webbläsare.', true);
+      liveFailed('Kunde inte spela strömmen. Den kan vara offline eller blockera webbläsare.');
     });
   } else {
     video.src = url; video.play().catch(() => {});
@@ -1554,7 +1562,7 @@ video.addEventListener('loadedmetadata', () => {
   }
 });
 video.addEventListener('waiting', () => status('Buffrar…'));
-video.addEventListener('error', () => { if (!hls && !ts && video.getAttribute('src')) status(ExternalPlayer ? 'Kunde inte spela här. Tryck på ↗ Annan spelare för att öppna i t.ex. VLC.' : 'Kunde inte spela den här strömmen.', true); });
+video.addEventListener('error', () => { if (!hls && !ts && video.getAttribute('src') && !(NATIVE && nowItem && !nowItem._fallback)) liveFailed(ExternalPlayer ? 'Kunde inte spela här. Tryck på ↗ Annan spelare för att öppna i t.ex. VLC.' : 'Kunde inte spela den här strömmen.', true); });
 
 // ====== SPELARVY ======
 let queue = [], nowItem = null, idleTimer = null;
@@ -1650,6 +1658,59 @@ async function openExternal(item){
 $('pExt').onclick = openExternal;
 $('trackExt').onclick = () => { closeDialogs(); openExternal(); };
 $('pExt').classList.toggle('hidden', !ExternalPlayer);
+
+
+// ====== VÄLJ SPELARE AUTOMATISKT ======
+// Appen: filmer och serier i den inbyggda spelaren (ExoPlayer), live-TV i den snabba
+// webbspelaren med automatisk växling till den inbyggda om kanalen inte fungerar. Sist VLC.
+const NativePlayer = (() => { try { return NATIVE ? Capacitor.Plugins?.NativePlayer || null : null; } catch(_) { return null; } })();
+function launch(c, opts = {}){
+  if (NativePlayer && !opts.web && (TYPE(c) !== 'live' || c._native)) { runNative(c); return; }
+  openPlayer(c); startStream(c);
+}
+function liveFailed(msg){
+  const c = nowItem;
+  if (NativePlayer && c && !c._native) {
+    c._native = true; status('Byter spelare…');
+    stop(); exitFs(); $('player').classList.add('hidden');
+    runNative(c); return;
+  }
+  status(msg, true);
+}
+let nativeBusy = false;
+async function runNative(c){
+  if (nativeBusy) return; nativeBusy = true;
+  nowItem = c; status('');
+  const q = pos[c.url];
+  const start = q && q.t > 30 && q.t < q.d - 60 ? q.t : 0;
+  let r;
+  try { r = await NativePlayer.play({ url: c.url, title: c.name, startSec: start }); }
+  catch (e) { r = { error: e?.message || 'okänt fel' }; }
+  nativeBusy = false; r = r || {};
+  if (r.error) {
+    if (ExternalPlayer) { status('Den inbyggda spelaren klarade inte den här. Öppnar i annan spelare…'); setTimeout(() => status(''), 4000); openExternal(c); }
+    else status('Kunde inte spela (' + r.error + ').', true);
+    return;
+  }
+  if (TYPE(c) !== 'live' && r.duration > 0) savePos(c, r.position, r.duration);
+  doPush();
+  if (r.ended && epCtx) { showNextDialog(); return; }
+  epCtx = null;
+  if (!openDialogEl()) { const y = $('main').scrollTop; renderView(); $('main').scrollTop = y; }
+}
+// "Nästa avsnitt" när den inbyggda spelaren har spelat klart
+function showNextDialog(){
+  const n = nextEpisodeOf(epCtx); if (!n) { epCtx = null; renderView(); return; }
+  const ep = epCtx.serData.episodes[n[0]][n[1]];
+  $('ndTitle').textContent = `S${n[0]} A${ep.episode_num || n[1] + 1} ${ep.title || ''}`;
+  openDialog('nextDialog');
+  let left = 10; $('ndCount').textContent = left;
+  clearInterval(nextTimer);
+  nextTimer = setInterval(() => { left--; $('ndCount').textContent = left; if (left <= 0) { clearInterval(nextTimer); closeDialogs(); startNextEpisode(); } }, 1000);
+  setTimeout(() => $('ndGo').focus(), 60);
+}
+$('ndGo').onclick = () => { clearInterval(nextTimer); closeDialogs(); startNextEpisode(); };
+$('ndCancel').onclick = () => { clearInterval(nextTimer); epCtx = null; closeDialogs(); renderView(); };
 
 // ====== TV-GUIDE (nu och sedan) ======
 const epgCache = {};
