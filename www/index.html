@@ -143,7 +143,9 @@
   .ctitle{position:absolute;left:0;right:0;bottom:0;padding:22px 8px 7px;font-size:.82em;font-weight:600;background:linear-gradient(0deg,rgba(0,0,0,.9),rgba(0,0,0,0));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   button.card .badge{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.7);font-size:.72em;padding:2px 6px;border-radius:4px}
   button.card .num{position:absolute;top:6px;left:6px;font-size:.75em;color:#aab}
+  button.card .yr{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.7);font-size:.72em;padding:2px 6px;border-radius:4px;font-variant-numeric:tabular-nums}
   button.card.isfav::after{content:'★';position:absolute;top:4px;right:7px;color:var(--focus);text-shadow:0 1px 4px #000}
+  button.card.isfav .yr{top:26px}
   button.card .seen{position:absolute;left:0;bottom:0;height:3px;width:100%;background:#e5a00d}
   button.card:hover,button.card:focus{transform:scale(1.07);z-index:2;box-shadow:0 10px 30px rgba(0,0,0,.7)}
   button.card.f:focus{outline:3px solid #fff;outline-offset:0}
@@ -1052,7 +1054,8 @@ const vstate = { live: { cat: '', limit: 200 }, movie: { cat: '', genre: '', lim
 
 // Anropas när en spellista har lästs in
 function setGroups(){
-  byType = { live: [], movie: [], series: [] }; idxOf = new Map();
+  byType = { live: [], movie: [], series: [] }; idxOf = new Map(); searchIdx = null;
+  setTimeout(() => (window.requestIdleCallback || setTimeout)(() => { if (!searchIdx) buildSearchIndex(); }), 3000);
   channels.forEach((c, i) => { idxOf.set(c, i); byType[TYPE(c)].push(c); });
   document.querySelectorAll('.nav').forEach(b => {
     const t = b.dataset.view; if (byType[t]) b.classList.toggle('hidden', !byType[t].length);
@@ -1102,6 +1105,7 @@ function card(c){
     ${c.logo ? `<img src="${esc(c.logo)}" loading="lazy" alt="" onerror="this.remove()">` : ''}
     ${live && c.num ? `<span class="num">${c.num}</span>` : ''}
     ${!live && c.rating ? `<span class="badge">★ ${fmtRating(c.rating)}</span>` : ''}
+    ${!live && c.year ? `<span class="yr">${esc(c.year)}</span>` : ''}
     <span class="ctitle">${esc(c.name)}</span>
     ${!live && (progress(c) || done[c.url]) ? `<span class="seen" style="width:${done[c.url] && !progress(c) ? 100 : progress(c)}%"></span>` : ''}
   </button>`;
@@ -1267,6 +1271,39 @@ function lev(a, b, max){
   }
   return prev[b.length];
 }
+// Sökindex: varje unikt ord pekar på titlarna där det förekommer. Byggs en gång per lista.
+let searchIdx = null;
+function buildSearchIndex(){
+  const words = new Map();
+  channels.forEach((c, i) => {
+    const n = c._n || (c._n = norm(c.name));
+    for (const w of new Set(n.split(' '))) { if (!w) continue; let a = words.get(w); if (!a) words.set(w, a = []); a.push(i); }
+  });
+  searchIdx = { words, list: [...words.keys()], size: channels.length };
+  return searchIdx;
+}
+function searchIndexed(q){
+  const qn = norm(q); if (!qn) return [];
+  const idx = searchIdx && searchIdx.size === channels.length ? searchIdx : buildSearchIndex();
+  let hits = null; // index -> poäng
+  for (const t of qn.split(' ')) {
+    const max = t.length >= 7 ? 2 : t.length >= 4 ? 1 : 0;
+    const found = new Map();
+    for (const w of idx.list) {
+      let sc = 0;
+      if (w.startsWith(t)) sc = w === t ? 22 : 20;
+      else if (t.length >= 3 && w.includes(t)) sc = 15;
+      else if (max && w[0] === t[0] && Math.abs(w.length - t.length) <= max + 3 && lev(t, w.slice(0, t.length + max), max) <= max) sc = 8;
+      if (sc) for (const i of idx.words.get(w)) if ((found.get(i) || 0) < sc) found.set(i, sc);
+    }
+    // skådespelare för titlar vars filminfo redan hämtats
+    for (const c of channels) if (c._cast && norm(c._cast).includes(t)) { const i = idxOf.get(c); if (i !== undefined && !found.has(i)) found.set(i, 12); }
+    if (!hits) hits = found;
+    else { const next = new Map(); for (const [i, sc] of found) if (hits.has(i)) next.set(i, hits.get(i) + sc); hits = next; }
+    if (!hits.size) return [];
+  }
+  return [...hits].map(([i, sc]) => { const c = channels[i]; return [c, sc + (c._n.includes(qn) ? (c._n.startsWith(qn) ? 100 : 80) : 0)]; });
+}
 function matchScore(c, q){
   const name = c._n || (c._n = norm(c.name)), qn = norm(q); if (!qn) return 0;
   if (name.includes(qn)) return name.startsWith(qn) ? 100 : 80;
@@ -1285,8 +1322,9 @@ function matchScore(c, q){
 function renderSearch(){
   const q = vstate.search.q.trim().toLowerCase(), box = $('searchRes'); if (!box) return;
   if (q.length < 2) { box.innerHTML = '<div class="empty" style="padding-top:30px">Skriv minst två bokstäver.</div>'; return; }
-  const res = t => byType[t].map(c => [c, matchScore(c, q)]).filter(x => x[1] > 0)
-    .sort((a, b) => b[1] - a[1] || (b[0].rating || 0) - (a[0].rating || 0)).map(x => x[0]);
+  const all = searchIndexed(q);
+  const res = t => all.filter(x => TYPE(x[0]) === t)
+    .sort((a, b) => b[1] - a[1] || (b[0].rating || 0) - (a[0].rating || 0)).slice(0, 60).map(x => x[0]);
   const html = row('Filmer', res('movie')) + row('Serier', res('series')) + row('Kanaler', res('live'));
   box.innerHTML = html || '<div class="empty" style="padding-top:30px">Inga träffar.</div>';
 }
@@ -1741,7 +1779,7 @@ function openMultiPicker(){
 }
 function renderMultiPicker(){
   const q = $('mpSearch').value.trim();
-  let list = q.length >= 2 ? byType.live.map(c => [c, matchScore(c, q)]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]).map(x => x[0])
+  let list = q.length >= 2 ? searchIndexed(q).filter(x => TYPE(x[0]) === 'live').sort((a, b) => b[1] - a[1]).map(x => x[0])
     : [...upcoming(1).filter(isLiveNow), ...sortList(byType.live.filter(c => hist[c.url]), 'recent'), ...sortList(byType.live, 'num')];
   list = [...new Set(list)].filter(c => !multi.includes(c)).slice(0, 80);
   $('mpList').innerHTML = list.map(c => `<button class="f" type="button" data-mp="${idxOf.get(c)}">${c.sicon || '📺'} ${esc(c.title || c.name)}</button>`).join('') || '<div class="msg">Inga kanaler hittades.</div>';
