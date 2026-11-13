@@ -217,6 +217,7 @@
     <div id="now"></div>
     <button class="f iconbtn" type="button" id="prevBtn" title="Föregående kanal">▲ Kanal</button>
     <button class="f iconbtn" type="button" id="nextBtn" title="Nästa kanal">▼ Kanal</button>
+    <button class="f iconbtn hidden" type="button" id="pCast" title="Spela på TV">📺 Casta</button>
     <button class="f iconbtn" type="button" id="pFav" title="Min lista">☆</button>
     <button class="f iconbtn" type="button" id="fullBtn" title="Helskärm">⛶</button>
   </div>
@@ -237,6 +238,7 @@
           <div class="hmeta" id="dMeta"></div>
           <div class="dbtns">
             <button class="f play" type="button" id="dPlay">▶ Spela</button>
+            <button class="f ghost hidden" type="button" id="dCast">📺 Spela på TV</button>
             <button class="f ghost" type="button" id="dFav">+ Min lista</button>
           </div>
         </div>
@@ -249,6 +251,37 @@
         <div id="serEps" class="eplist"></div>
       </div>
       <div class="msg" id="serMsg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Välj TV -->
+<div id="castDialog" class="overlay hidden">
+  <div class="card">
+    <h2>Spela på…</h2>
+    <div id="castList" class="eplist"></div>
+    <div class="msg">Syns inte din TV? Öppna appen på TV:n och logga in med samma konto.</div>
+    <button class="f ghost" type="button" data-close>Avbryt</button>
+  </div>
+</div>
+
+<!-- Fjärrkontroll när något spelas på TV:n -->
+<div id="remoteDialog" class="overlay hidden">
+  <div class="card" style="text-align:center">
+    <h2 id="rTitle">Spelas på TV</h2>
+    <div class="msg" id="rNow"></div>
+    <div class="row">
+      <button class="f ghost" type="button" data-r="seek" data-v="-10">⏪ 10 s</button>
+      <button class="f" type="button" data-r="toggle" id="rToggle">⏯ Paus</button>
+      <button class="f ghost" type="button" data-r="seek" data-v="10">10 s ⏩</button>
+    </div>
+    <div class="row" id="rLive">
+      <button class="f ghost" type="button" data-r="ch" data-v="-1">▲ Kanal</button>
+      <button class="f ghost" type="button" data-r="ch" data-v="1">▼ Kanal</button>
+    </div>
+    <div class="row">
+      <button class="f ghost" type="button" data-r="stop">⏹ Stoppa på TV:n</button>
+      <button class="f ghost" type="button" data-close>Stäng</button>
     </div>
   </div>
 </div>
@@ -421,8 +454,8 @@ sb.auth.onAuthStateChange((event, session) => {
   if (authReady && u?.id === user?.id) return;
   authReady = true;
   user = u;
-  if (user) { show('app'); loadAll(); subscribe(); }
-  else { unsubscribe(); channels = []; playlists = []; favs.clear(); IS_TV ? (show('codeView'), startCodeLogin()) : show('loginView'); }
+  if (user) { show('app'); loadAll(); subscribe(); castSubscribe(); }
+  else { unsubscribe(); castUnsub(); channels = []; playlists = []; favs.clear(); IS_TV ? (show('codeView'), startCodeLogin()) : show('loginView'); }
 });
 
 // ====== NÄTVERK ======
@@ -462,7 +495,7 @@ function renderPlSelect(){
 async function loadPlaylist(id, resume){
   const p = playlists.find(x => x.id === id); if (!p) return;
   status('Läser in ' + p.name + '…');
-  const xt = parseXtream(p.url);
+  const xt = parseXtream(p.url) || xtFromGetPhp(p.url);
   if (xt) {
     curXt = xt;
     try { channels = await loadXtream(xt); }
@@ -530,7 +563,7 @@ function unsubscribe(){ if (rtChannel) { sb.removeChannel(rtChannel); rtChannel 
 // ====== SPELLISTOR ======
 $('plManageBtn').onclick = () => { renderPlRows(); openDialog('plDialog'); };
 function renderPlRows(){
-  const kind = p => parseXtream(p.url) ? 'Xtream' : /iptv-org\.github\.io/.test(p.url || '') ? 'Gratis' : p.url ? 'Länk' : 'Fil';
+  const kind = p => parseXtream(p.url) || xtFromGetPhp(p.url) ? 'Xtream' : /iptv-org\.github\.io/.test(p.url || '') ? 'Gratis' : p.url ? 'Länk' : 'Fil';
   $('plRows').innerHTML = playlists.length ? playlists.map(p => `
     <div class="plrow"><span>${esc(p.name)}<small>${kind(p)}</small></span><button class="f ghost" type="button" data-del="${p.id}">Ta bort</button></div>`).join('')
     : '<div class="msg">Inga spellistor ännu.</div>';
@@ -594,6 +627,14 @@ document.querySelectorAll('[data-free]').forEach(b => b.onclick = () =>
 
 // ====== XTREAM CODES API ======
 function hostOf(u){ try { return new URL(u).hostname; } catch(_) { return 'Spellista'; } }
+function xtFromGetPhp(url){
+  try {
+    const u = new URL(url);
+    if (!/\/get\.php$/i.test(u.pathname)) return null;
+    const user = u.searchParams.get('username'), pass = u.searchParams.get('password');
+    return user && pass ? { s: u.origin, u: user, p: pass, vod: true } : null;
+  } catch(_) { return null; }
+}
 function parseXtream(url){
   if (!url || !url.startsWith('xtream:')) return null;
   try { return JSON.parse(url.slice(7)); } catch(_) { return null; }
@@ -681,7 +722,9 @@ function parseM3U(text){
     } else if (line.startsWith('#EXTGRP:')) { if (info) info.group = line.slice(8).trim(); }
     else if (!line.startsWith('#')) {
       const type = /\/movie\//i.test(line) ? 'movie' : /\/series\//i.test(line) ? 'series' : 'live';
-      out.push({ ...(info || { name: line.split('/').pop() || line, logo: '', group: 'Övrigt' }), url: line, type });
+      const it = { ...(info || { name: line.split('/').pop() || line, logo: '', group: 'Övrigt' }), url: line, type };
+      if (type !== 'live') { const y = it.name.match(/\b(19[3-9]\d|20[0-4]\d)\b/); if (y) it.year = y[1]; }
+      out.push(it);
       info = null;
     }
   }
@@ -691,8 +734,8 @@ function parseM3U(text){
 // ====== VYER (streamingstil) ======
 const SORTS = {
   live:   [['num','Kanalnummer'],['name','Namn A–Ö'],['recent','Senast sedda'],['std','Leverantörens ordning']],
-  movie:  [['new','Senast tillagda'],['pop','Populärast'],['name','Namn A–Ö']],
-  series: [['new','Senast tillagda'],['pop','Populärast'],['name','Namn A–Ö']]
+  movie:  [['new','Senast tillagda'],['year','Nyast (utgivningsår)'],['pop','Populärast'],['name','Namn A–Ö']],
+  series: [['new','Senast tillagda'],['year','Nyast (utgivningsår)'],['pop','Populärast'],['name','Namn A–Ö']]
 };
 const store = { get(k, d){ try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch(_) { return d; } },
                 set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(_) {} } };
@@ -722,7 +765,8 @@ function sortList(list, by){
   const cmp = {
     std, name: sv,
     num: (a, b) => (a.num || 1e9) - (b.num || 1e9) || std(a, b),
-    new: (a, b) => (b.added || 0) - (a.added || 0) || sv(a, b),
+    new: (a, b) => (b.added || 0) - (a.added || 0) || (+b.year || 0) - (+a.year || 0) || sv(a, b),
+    year: (a, b) => (+b.year || 0) - (+a.year || 0) || (b.added || 0) - (a.added || 0) || sv(a, b),
     pop: (a, b) => (b.rating || 0) - (a.rating || 0) || (b.added || 0) - (a.added || 0),
     recent: (a, b) => (hist[b.url] || 0) - (hist[a.url] || 0) || std(a, b)
   }[by] || std;
@@ -804,6 +848,7 @@ function homeView(){
   html += row('Senast sedda kanaler', watchedLive);
   html += row('Min lista', favList, 'fav');
   html += row('Nya filmer', sortList(m, 'new'), 'movie|');
+  if (m.some(c => c.year)) html += row('Nyaste filmerna (utgivningsår)', sortList(m.filter(c => c.year), 'year'), 'movie|');
   if (m.some(c => c.rating)) html += row('Populära filmer', sortList(m, 'pop'), 'movie|');
   html += row('Nya serier', sortList(s, 'new'), 'series|');
   if (s.some(c => c.rating)) html += row('Populära serier', sortList(s, 'pop'), 'series|');
@@ -825,6 +870,7 @@ function typeView(t){
   // Filmer/serier utan vald kategori: rader som på en streamingtjänst
   if (t !== 'live' && !st.cat) {
     html += row('Senast tillagda', sortList(list, 'new'));
+    if (list.some(c => c.year)) html += row('Nyast efter utgivningsår', sortList(list.filter(c => c.year), 'year'));
     if (list.some(c => c.rating)) html += row('Populärast', sortList(list, 'pop'));
     categories(list).slice(0, 30).forEach(([g]) => html += row(g, sortList(list.filter(c => c.group === g), by), t + '|' + g));
     return html;
@@ -959,6 +1005,7 @@ function playEpisode(season, i){
   const ep = serData.episodes[season][i];
   const item = { name: `${serItem.name} · S${season} A${ep.episode_num || i + 1} ${ep.title || ''}`, url: epUrl(ep), type: 'movie', parent: serItem };
   remember(serItem); remember(item);
+  if (pendingCast) { closeDialogs(); castTo(item); return; }
   closeDialogs(); openPlayer(item); startStream(item);
 }
 $('serSeason').onchange = renderEpisodes;
@@ -994,6 +1041,7 @@ function play(i){
   if (i < 0 || i >= channels.length) return;
   current = i; const c = channels[i];
   if (c.seriesId && curXt) { openDetail(c); return; }
+  if (pendingCast) { castTo(c); return; }
   if (!queue.includes(c)) queue = TYPE(c) === 'live' ? sortList(byType.live, 'num') : [c];
   remember(c);
   saveSettings({ last_channel_url: c.url, last_channel_name: c.name });
@@ -1084,6 +1132,83 @@ function step(d){
 $('prevBtn').onclick = () => step(-1);
 $('nextBtn').onclick = () => step(1);
 $('fullBtn').onclick = fullscreen;
+
+
+// ====== SPELA PÅ TV (casta till din egen app på TV:n) ======
+const deviceId = store.get('iptv_dev', null) || (() => { const id = randomSecret().slice(0, 12); store.set('iptv_dev', id); return id; })();
+function deviceName(){
+  const u = navigator.userAgent;
+  if (/Web0S|webOS/i.test(u)) return 'LG-TV';
+  if (/Tizen/i.test(u)) return 'Samsung-TV';
+  if (/AFT[A-Z]/.test(u)) return 'Fire TV';
+  if (/Android TV|GoogleTV|BRAVIA|CrKey/i.test(u) || IS_TV) return 'Android-TV';
+  if (/Android|iPhone|iPad/i.test(u)) return NATIVE ? 'Mobil (app)' : 'Mobil (webb)';
+  return 'Dator';
+}
+let castCh = null, devices = {}, pendingCast = null, castTarget = null, castLive = false;
+function castSubscribe(){
+  castUnsub();
+  castCh = sb.channel('cast-' + user.id, { config: { presence: { key: deviceId }, broadcast: { self: false } } });
+  castCh
+    .on('presence', { event: 'sync' }, () => {
+      devices = {};
+      for (const [k, arr] of Object.entries(castCh.presenceState())) if (k !== deviceId && arr[0]) devices[k] = arr[0];
+      updateCastBtns();
+    })
+    .on('broadcast', { event: 'cmd' }, ({ payload: p }) => { if (p.to === deviceId) onCastCmd(p); })
+    .on('broadcast', { event: 'state' }, ({ payload: p }) => { if (p.to === deviceId) onCastState(p); })
+    .subscribe(st => { if (st === 'SUBSCRIBED') castCh.track({ name: deviceName(), tv: IS_TV }); });
+}
+function castUnsub(){ if (castCh) { sb.removeChannel(castCh); castCh = null; } devices = {}; updateCastBtns(); }
+function sendCast(event, payload){ castCh?.send({ type: 'broadcast', event, payload: { from: deviceId, ...payload } }); }
+function updateCastBtns(){
+  const any = Object.keys(devices).length > 0;
+  $('pCast').classList.toggle('hidden', !any); $('dCast').classList.toggle('hidden', !any);
+}
+// TV:ar först i listan
+function chooseDevice(cb){
+  const ids = Object.keys(devices).sort((a, b) => (devices[b].tv ? 1 : 0) - (devices[a].tv ? 1 : 0));
+  if (!ids.length) { status('Ingen TV hittades. Öppna appen på TV:n och logga in med samma konto.', true); return; }
+  if (ids.length === 1) return cb(ids[0]);
+  $('castList').innerHTML = ids.map(id => `<button class="f" type="button" data-dev="${id}">${devices[id].tv ? '📺' : '💻'} ${esc(devices[id].name)}</button>`).join('');
+  $('castList').onclick = e => { const b = e.target.closest('[data-dev]'); if (b) { closeDialogs(); cb(b.dataset.dev); } };
+  openDialog('castDialog');
+}
+function castTo(item){
+  const to = pendingCast; pendingCast = null; if (!to || !item) return;
+  castTarget = to; castLive = TYPE(item) === 'live';
+  sendCast('cmd', { to, action: 'play', item: { name: item.name, url: item.url, type: item.type, logo: item.logo } });
+  if (!$('player').classList.contains('hidden')) { stop(); exitFs(); $('player').classList.add('hidden'); }
+  $('rTitle').textContent = 'Spelas på ' + (devices[to]?.name || 'TV');
+  $('rNow').textContent = item.name; $('rLive').classList.toggle('hidden', !castLive);
+  openDialog('remoteDialog');
+}
+$('dCast').onclick = () => chooseDevice(id => { pendingCast = id; $('dPlay').onclick(); });
+$('pCast').onclick = () => chooseDevice(id => { pendingCast = id; castTo(nowItem); });
+$('remoteDialog').addEventListener('click', e => {
+  const b = e.target.closest('[data-r]'); if (!b || !castTarget) return;
+  sendCast('cmd', { to: castTarget, action: b.dataset.r, v: +b.dataset.v || 0 });
+  if (b.dataset.r === 'stop') closeDialogs();
+});
+// Mottagare (TV:n)
+function onCastCmd(p){
+  if (p.action === 'play') {
+    closeDialogs();
+    const i = channels.findIndex(c => c.url === p.item.url);
+    if (i > -1) { queue = []; play(i); } else { remember(p.item); openPlayer(p.item); startStream(p.item); }
+    status('📲 Startat från ' + (devices[p.from]?.name || 'en annan enhet'));
+    setTimeout(() => { if (video.paused) status('Tryck OK eller ▶ för att starta uppspelningen'); else status(''); }, 3500);
+  } else if (p.action === 'toggle') { video.paused ? video.play().catch(() => {}) : video.pause(); wake(); }
+  else if (p.action === 'stop') { if (!$('player').classList.contains('hidden')) closePlayer(); }
+  else if (p.action === 'ch') step(p.v);
+  else if (p.action === 'seek') { video.currentTime = Math.max(0, video.currentTime + p.v); wake(); }
+  setTimeout(() => sendCast('state', { to: p.from, name: nowItem?.name || '', paused: video.paused,
+    playing: !$('player').classList.contains('hidden') }), 600);
+}
+function onCastState(p){
+  if (!p.playing) { $('rNow').textContent = 'Inget spelas just nu'; return; }
+  $('rNow').textContent = p.name; $('rToggle').textContent = p.paused ? '▶ Spela' : '⏯ Paus';
+}
 
 // ====== FJÄRRKONTROLL / TANGENTBORD ======
 const KEY = { LEFT: [37], UP: [38], RIGHT: [39], DOWN: [40], OK: [13],
