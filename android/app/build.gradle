@@ -18,11 +18,11 @@ android {
     }
     signingConfigs {
         shared {
-            // Använder nyckeln från GitHub-hemligheten KEYSTORE_B64 om den finns, annars filen i repot
-            storeFile file(System.getenv("KEYSTORE_FILE") ?: "iptv.keystore")
-            storePassword System.getenv("KEYSTORE_PASSWORD") ?: "iptvspelare"
+            // Nyckeln kommer från GitHub-hemligheterna KEYSTORE_B64 och KEYSTORE_PASSWORD
+            storeFile file(System.getenv("KEYSTORE_FILE") ?: "saknas.keystore")
+            storePassword System.getenv("KEYSTORE_PASSWORD") ?: ""
             keyAlias "iptv"
-            keyPassword System.getenv("KEYSTORE_PASSWORD") ?: "iptvspelare"
+            keyPassword System.getenv("KEYSTORE_PASSWORD") ?: ""
         }
     }
     buildTypes {

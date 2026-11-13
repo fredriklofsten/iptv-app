@@ -1978,6 +1978,7 @@ async function checkUpdate(){
     if (store.get('iptv_upd_skip', 0) === latest && !IS_TV) return; // "Senare" gäller tills nästa version
     $('updTitle').textContent = `Ny version finns (version ${latest})`;
     $('updNotes').textContent = (r.body || '').split('\n').find(l => l.trim()) || '';
+    if (window.APP_BUILD <= 10 && latest > 10) $('updNotes').textContent = 'Viktigt: avinstallera appen först och installera sedan den nya (ny säker nyckel). Din historik finns kvar i kontot.';
     if (/Web0S|webOS|Tizen/i.test(navigator.userAgent)) { $('updNotes').textContent = 'Installera den nya versionen från datorn (se instruktionen på GitHub).'; $('updGo').classList.add('hidden'); }
     $('updBar').classList.remove('hidden');
     $('updLater').onclick = () => { store.set('iptv_upd_skip', latest); $('updBar').classList.add('hidden'); };

@@ -31,7 +31,7 @@ Samsung kräver att appen signeras med ett certifikat som är kopplat till just 
 - **Webbversion och bekräftelsemejl:** Settings → Pages → Source: **GitHub Actions**. Webbversionen hamnar på https://fredriklofsten.github.io/iptv-app/.
   I Supabase: Authentication → URL Configuration → **Site URL** = `https://fredriklofsten.github.io/iptv-app/` och lägg samma adress under *Redirect URLs*.
 - **Signeringsnyckel som hemlighet:** Settings → Secrets and variables → Actions → New repository secret:
-  `KEYSTORE_B64` (innehållet i `android/app/iptv.keystore` som base64) och `KEYSTORE_PASSWORD`. Därefter kan filen tas bort ur repot.
+  `KEYSTORE_B64` och `KEYSTORE_PASSWORD` (redan inlagda). Nyckeln finns inte i repot.
 
 ## Innehåll
 - `www/` – själva appen (HTML/JS), används av alla plattformar
