@@ -139,11 +139,20 @@
   .pbar{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:10px;padding:14px 3%;background:linear-gradient(180deg,rgba(0,0,0,.85),rgba(0,0,0,0));transition:opacity .3s}
   .player.idle .pbar{opacity:0;pointer-events:none}
   .player.idle{cursor:none}
-  #now{flex:1;font-weight:700;font-size:1.1em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #nowbox{flex:1;min-width:0}
+  #pEpg{font-size:.82em;color:#cfd3dc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #pEpg:empty{display:none}
+  #now{font-weight:700;font-size:1.1em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #pstatus{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.6);padding:.6em 1em;border-radius:8px}
   #pstatus:empty{display:none}
   .nextup{position:absolute;right:3%;bottom:90px;background:rgba(20,21,27,.95);border:1px solid #333;border-radius:10px;padding:16px;width:min(360px,90%);display:flex;flex-direction:column;gap:8px;z-index:3}
   .nextup .ntitle{font-weight:700;font-size:1.1em}
+  button.card .cepg{position:absolute;left:0;right:0;bottom:0;padding:18px 8px 6px;font-size:.72em;color:#cfd3dc;background:linear-gradient(0deg,rgba(0,0,0,.95),rgba(0,0,0,0));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  button.card .cepg i{display:block;height:3px;background:#444;margin-top:4px;border-radius:2px;overflow:hidden}
+  button.card .cepg i b{display:block;height:100%;background:#e5a00d}
+  button.card.wide.hasepg img{padding-bottom:42%}
+  button.card.wide.hasepg .ctitle{bottom:24px;background:none;padding-bottom:0}
+  .eplist button.on{border-color:var(--acc);background:#1c2a45}
   .tvhint{position:absolute;bottom:70px;left:0;right:0;text-align:center;font-size:.8em;color:#aaa;transition:opacity .3s}
   .player.idle .tvhint{opacity:0}
 
@@ -243,10 +252,12 @@
   <video id="video" controls playsinline></video>
   <div class="pbar">
     <button class="f iconbtn" type="button" id="pBack">← Tillbaka</button>
-    <div id="now"></div>
+    <div id="nowbox"><div id="now"></div><div id="pEpg"></div></div>
     <button class="f iconbtn" type="button" id="prevBtn" title="Föregående kanal">▲ Kanal</button>
     <button class="f iconbtn" type="button" id="nextBtn" title="Nästa kanal">▼ Kanal</button>
     <button class="f iconbtn hidden" type="button" id="pRestart">↺ Börja om</button>
+    <button class="f iconbtn hidden" type="button" id="pTracks" title="Ljud och undertexter">🎧 Ljud/Text</button>
+    <button class="f iconbtn hidden" type="button" id="pExt" title="Öppna i annan spelare">↗ Annan spelare</button>
     <button class="f iconbtn hidden" type="button" id="pCast" title="Spela på TV">📺 Casta</button>
     <button class="f iconbtn" type="button" id="pFav" title="Min lista">☆</button>
     <button class="f iconbtn" type="button" id="fullBtn" title="Helskärm">⛶</button>
@@ -306,6 +317,17 @@
       <button class="f ghost" type="button" id="upAll">Visa alla PPV</button>
       <button class="f" type="button" data-close>Stäng</button>
     </div>
+  </div>
+</div>
+
+<!-- Ljud och undertexter -->
+<div id="trackDialog" class="overlay hidden">
+  <div class="card">
+    <h2>Ljud och undertexter</h2>
+    <div class="msg">Ljudspår</div><div id="audioList" class="eplist"></div>
+    <div class="msg">Undertexter</div><div id="subList" class="eplist"></div>
+    <div class="msg" id="trackMsg"></div>
+    <button class="f" type="button" data-close>Klar</button>
   </div>
 </div>
 
@@ -861,6 +883,7 @@ function setGroups(){
 }
 // Ritar om den aktuella vyn
 function render(){ renderView(); }
+const _rv = () => setTimeout(() => window.watchEpg && watchEpg(), 0);
 
 function sortList(list, by){
   const sv = (a, b) => a.name.localeCompare(b.name, 'sv', { numeric: true });
@@ -939,6 +962,7 @@ function renderView(){
   else if (view === 'ppv') v.innerHTML = ppvView();
   else if (view === 'search') { v.innerHTML = searchView(); const s = $('searchInput'); s.value = vstate.search.q; renderSearch(); }
   else v.innerHTML = typeView(view);
+  _rv();
 }
 
 function homeView(){
@@ -1429,7 +1453,8 @@ function startStream(c){
   } else if (!nativeHls && window.Hls && Hls.isSupported() && !/\.(mp4|webm|mp3|aac)$/.test(lower)){
     hls = new Hls({ enableWorker: true, lowLatencyMode: true });
     hls.loadSource(url); hls.attachMedia(video);
-    hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+    hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); updateTrackBtn(); });
+    hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, updateTrackBtn); hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, updateTrackBtn);
     hls.on(Hls.Events.ERROR, (_, d) => {
       if (!d.fatal) return;
       if (d.type === Hls.ErrorTypes.MEDIA_ERROR) { hls.recoverMediaError(); return; }
@@ -1458,7 +1483,7 @@ video.addEventListener('loadedmetadata', () => {
   }
 });
 video.addEventListener('waiting', () => status('Buffrar…'));
-video.addEventListener('error', () => { if (!hls && !ts && video.getAttribute('src')) status('Kunde inte spela den här strömmen.', true); });
+video.addEventListener('error', () => { if (!hls && !ts && video.getAttribute('src')) status(ExternalPlayer ? 'Kunde inte spela här. Tryck på ↗ Annan spelare för att öppna i t.ex. VLC.' : 'Kunde inte spela den här strömmen.', true); });
 
 // ====== SPELARVY ======
 let queue = [], nowItem = null, idleTimer = null;
@@ -1469,6 +1494,7 @@ function openPlayer(c){
   $('now').textContent = c.name;
   $('player').classList.remove('hidden');
   updateFavBtns(); wake();
+  $('pTracks').classList.add('hidden'); showPlayerEpg(c);
   if (NATIVE || matchMedia('(pointer:coarse)').matches) enterFs();
 }
 function closePlayer(){
@@ -1510,6 +1536,90 @@ $('prevBtn').onclick = () => step(-1);
 $('nextBtn').onclick = () => step(1);
 $('fullBtn').onclick = fullscreen;
 
+
+
+// ====== LJUD, UNDERTEXTER OCH ANNAN SPELARE ======
+const ExternalPlayer = (() => { try { return NATIVE && Capacitor.registerPlugin ? Capacitor.registerPlugin('ExternalPlayer') : null; } catch(_) { return null; } })();
+function trackInfo(){
+  const audio = [], subs = [];
+  if (hls) {
+    (hls.audioTracks || []).forEach((t, i) => audio.push({ name: t.name || t.lang || 'Spår ' + (i + 1), on: hls.audioTrack === i, set: () => { hls.audioTrack = i; } }));
+    (hls.subtitleTracks || []).forEach((t, i) => subs.push({ name: t.name || t.lang || 'Text ' + (i + 1), on: hls.subtitleTrack === i, set: () => { hls.subtitleDisplay = true; hls.subtitleTrack = i; } }));
+    if (subs.length) subs.unshift({ name: 'Av', on: hls.subtitleTrack === -1, set: () => { hls.subtitleTrack = -1; } });
+  } else {
+    const at = video.audioTracks; if (at) for (let i = 0; i < at.length; i++) audio.push({ name: at[i].label || at[i].language || 'Spår ' + (i + 1), on: at[i].enabled, set: () => { for (let j = 0; j < at.length; j++) at[j].enabled = j === i; } });
+    const tt = [...video.textTracks].filter(t => t.kind === 'subtitles' || t.kind === 'captions');
+    tt.forEach((t, i) => subs.push({ name: t.label || t.language || 'Text ' + (i + 1), on: t.mode === 'showing', set: () => tt.forEach((x, j) => x.mode = j === i ? 'showing' : 'disabled') }));
+    if (tt.length) subs.unshift({ name: 'Av', on: tt.every(t => t.mode !== 'showing'), set: () => tt.forEach(x => x.mode = 'disabled') });
+  }
+  return { audio, subs };
+}
+function updateTrackBtn(){ const t = trackInfo(); $('pTracks').classList.toggle('hidden', t.audio.length < 2 && !t.subs.length); }
+function openTracks(){
+  const t = trackInfo(), list = (arr, id) => { $(id).innerHTML = arr.length ? arr.map((x, i) => `<button class="f ${x.on ? 'on' : ''}" type="button" data-t="${i}">${x.on ? '✓ ' : ''}${esc(x.name)}</button>`).join('') : '<div class="msg">Inga att välja</div>';
+    $(id).onclick = e => { const b = e.target.closest('[data-t]'); if (b) { arr[+b.dataset.t].set(); setTimeout(openTracks, 150); } }; };
+  list(t.audio, 'audioList'); list(t.subs, 'subList');
+  msg($('trackMsg'), ExternalPlayer ? 'Saknas språket du vill ha? "Annan spelare" (t.ex. VLC) visar alla spår som finns i filen.' : '');
+  if ($('trackDialog').classList.contains('hidden')) openDialog('trackDialog');
+}
+$('pTracks').onclick = openTracks;
+video.addEventListener('loadedmetadata', updateTrackBtn);
+video.textTracks?.addEventListener?.('addtrack', updateTrackBtn);
+async function openExternal(){
+  if (!ExternalPlayer || !nowItem) return;
+  savePos(nowItem);
+  try { await ExternalPlayer.open({ url: nowItem.url, title: nowItem.name }); video.pause(); }
+  catch (e) { status(e?.message || 'Ingen annan videospelare hittades. Installera till exempel VLC.', true); }
+}
+$('pExt').onclick = openExternal;
+$('pExt').classList.toggle('hidden', !ExternalPlayer);
+
+// ====== TV-GUIDE (nu och sedan) ======
+const epgCache = {};
+const b64 = t => { try { return decodeURIComponent(escape(atob(t))); } catch(_) { return t || ''; } };
+async function getEpg(c){
+  if (!curXt || !c.sid) return null;
+  const hit = epgCache[c.sid]; const now = Date.now() / 1000;
+  if (hit && hit.at > Date.now() - 15 * 60e3 && (!hit.now || hit.now.stop > now)) return hit;
+  try {
+    const r = await xtApi(curXt, `get_short_epg&stream_id=${c.sid}&limit=3`);
+    const l = (r.epg_listings || []).map(e => ({ title: b64(e.title), start: +e.start_timestamp, stop: +e.stop_timestamp })).filter(e => e.stop > now).sort((a, b) => a.start - b.start);
+    return epgCache[c.sid] = { at: Date.now(), now: l.find(e => e.start <= now) || null, next: l.find(e => e.start > now) || null };
+  } catch(_) { return epgCache[c.sid] = { at: Date.now(), now: null, next: null }; }
+}
+const hm = t => new Date(t * 1000).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+function epgHtml(c){
+  const e = c.sid && epgCache[c.sid]; if (!e || !e.now) return '';
+  const pct = Math.max(0, Math.min(100, (Date.now() / 1000 - e.now.start) / (e.now.stop - e.now.start) * 100));
+  return `<span class="cepg">Nu: ${esc(e.now.title)}<i><b style="width:${pct}%"></b></i></span>`;
+}
+function paintEpg(btn, c){
+  const h = epgHtml(c); if (!h || btn.querySelector('.cepg')) return;
+  btn.insertAdjacentHTML('beforeend', h); btn.classList.add('hasepg');
+}
+// Hämta guiden bara för kanaler som syns på skärmen
+let epgBusy = 0; const epgQueue = [];
+const epgObserver = 'IntersectionObserver' in window ? new IntersectionObserver(ents => {
+  ents.forEach(en => { if (!en.isIntersecting) return; epgObserver.unobserve(en.target); epgQueue.push(en.target); });
+  pumpEpg();
+}, { root: null, rootMargin: '200px' }) : null;
+function pumpEpg(){
+  while (epgBusy < 4 && epgQueue.length) {
+    const btn = epgQueue.shift(), c = channels[+btn.dataset.i]; if (!c || !c.sid) continue;
+    epgBusy++;
+    getEpg(c).then(() => paintEpg(btn, c)).finally(() => { epgBusy--; pumpEpg(); });
+  }
+}
+function watchEpg(){
+  if (!curXt || !epgObserver) return;
+  document.querySelectorAll('button.card.wide[data-i]').forEach(b => { const c = channels[+b.dataset.i]; if (c?.sid) { if (epgCache[c.sid]) paintEpg(b, c); else epgObserver.observe(b); } });
+}
+async function showPlayerEpg(c){
+  $('pEpg').textContent = '';
+  if (TYPE(c) !== 'live') return;
+  const e = await getEpg(c); if (nowItem !== c || !e) return;
+  $('pEpg').textContent = [e.now && `Nu: ${e.now.title} (${hm(e.now.start)}–${hm(e.now.stop)})`, e.next && `Sedan ${hm(e.next.start)}: ${e.next.title}`].filter(Boolean).join('  ·  ');
+}
 
 // ====== SPELA PÅ TV (casta till din egen app på TV:n) ======
 const deviceId = store.get('iptv_dev', null) || (() => { const id = randomSecret().slice(0, 12); store.set('iptv_dev', id); return id; })();
