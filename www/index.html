@@ -38,6 +38,8 @@
   .updbar{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:30;background:#1d2a45;border:1px solid var(--acc);border-radius:12px;padding:12px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;max-width:94vw;box-shadow:0 10px 30px rgba(0,0,0,.6)}
   .updbar .txt{flex:1;min-width:180px}
   .updbar small{display:block;color:var(--mute)}
+  #menuBtn.hasupd{position:relative}
+  #menuBtn.hasupd::after{content:'';position:absolute;top:4px;right:4px;width:10px;height:10px;border-radius:50%;background:#e50914;box-shadow:0 0 0 2px #0b0b0f}
   .notice{display:flex;align-items:center;gap:12px;margin:-20px 4% 18px;width:92%;background:linear-gradient(90deg,#2a1d0a,#1b1f2b);border:1px solid #6b4e16;border-radius:10px;padding:12px 14px;color:#fff;text-align:left;position:relative;z-index:2}
   .notice .bell{font-size:1.6em}
   .notice .ntxt{flex:1;min-width:0}
@@ -503,6 +505,7 @@
     <h2>Meny</h2>
     <div class="msg">Spellista</div>
     <select class="f" id="plSelect"></select>
+    <button class="f hidden" type="button" id="menuUpd">⬆ Uppdatera</button>
     <button class="f ghost" type="button" id="plManageBtn">Hantera spellistor</button>
     <button class="f ghost" type="button" id="plRefresh">↻ Uppdatera listan nu</button>
     <button class="f ghost" type="button" id="profSwitch">👤 Byt profil</button>
@@ -2530,28 +2533,54 @@ function onCastState(p){
 const REPO = 'fredriklofsten/iptv-app';
 const APK_URL = `https://github.com/${REPO}/releases/latest/download/IPTV-spelare.apk`;
 $('appVersion').textContent = window.APP_BUILD ? 'Version ' + window.APP_BUILD : 'Webbversion';
-async function checkUpdate(){
-  if (!window.APP_BUILD) return; // bara i den installerade appen
+// Hitta senaste versionen: först webbsidan (snabb, ingen gräns), sedan GitHubs API som reserv
+async function latestVersion(){
   try {
-    const r = JSON.parse(await httpText(`https://api.github.com/repos/${REPO}/releases/latest`));
-    const latest = parseInt(String(r.tag_name || '').replace(/\D/g, ''), 10);
-    if (!(latest > window.APP_BUILD)) return;
-    if (store.get('iptv_upd_skip', 0) === latest && !IS_TV) return; // "Senare" gäller tills nästa version
-    $('updTitle').textContent = `Ny version finns (version ${latest})`;
-    $('updNotes').textContent = (r.body || '').split('\n').find(l => l.trim()) || '';
-    if (window.APP_BUILD <= 10 && latest > 10) $('updNotes').textContent = 'Viktigt: avinstallera appen först och installera sedan den nya (ny säker nyckel). Din historik finns kvar i kontot.';
-    if (/Web0S|webOS|Tizen/i.test(navigator.userAgent)) { $('updNotes').textContent = 'Installera den nya versionen från datorn (se instruktionen på GitHub).'; $('updGo').classList.add('hidden'); }
-    $('updBar').classList.remove('hidden');
-    $('updLater').onclick = () => { store.set('iptv_upd_skip', latest); $('updBar').classList.add('hidden'); };
+    const t = await httpText(`${WEB_URL}version.js?t=${Date.now()}`);
+    const n = parseInt((t.match(/APP_BUILD\s*=\s*(\d+)/) || [])[1], 10);
+    if (n > 0) return { n, notes: '' };
   } catch(_) {}
+  const r = JSON.parse(await httpText(`https://api.github.com/repos/${REPO}/releases/latest`));
+  return { n: parseInt(String(r.tag_name || '').replace(/\D/g, ''), 10), notes: (r.body || '').split('\n').find(l => l.trim()) || '' };
+}
+let updLatest = 0, lastUpdCheck = 0;
+async function checkUpdate(force){
+  if (!window.APP_BUILD) return; // bara i den installerade appen
+  if (!force && Date.now() - lastUpdCheck < 10 * 60e3) return; // högst var 10:e minut
+  lastUpdCheck = Date.now();
+  let v;
+  try { v = await latestVersion(); } catch (e) { reportError('update', e?.message || String(e)); return; }
+  if (!(v.n > window.APP_BUILD)) { showUpdateBadge(0); return; }
+  updLatest = v.n; showUpdateBadge(v.n);
+  // Notis i telefonen en gång per ny version
+  if (Notif && store.get('iptv_upd_notified', 0) !== v.n) {
+    store.set('iptv_upd_notified', v.n);
+    try { await Notif.schedule({ notifications: [{ id: 990000 + (v.n % 9999), title: '⬆ Ny version av IPTV-spelare', body: `Version ${v.n} finns. Öppna appen och tryck Uppdatera.`, schedule: { at: new Date(Date.now() + 1500) }, extra: { update: v.n } }] }); } catch(_) {}
+  }
+  if (store.get('iptv_upd_skip', 0) === v.n && !IS_TV) return; // "Senare": rutan döljs men pricken och menyn finns kvar
+  $('updTitle').textContent = `Ny version finns (version ${v.n})`;
+  $('updNotes').textContent = v.notes || 'Du har version ' + window.APP_BUILD + '.';
+  if (/Web0S|webOS|Tizen/i.test(navigator.userAgent)) { $('updNotes').textContent = 'Installera den nya versionen från datorn (se instruktionen på GitHub).'; $('updGo').classList.add('hidden'); }
+  $('updBar').classList.remove('hidden');
+  $('updLater').onclick = () => { store.set('iptv_upd_skip', v.n); $('updBar').classList.add('hidden'); };
+}
+function showUpdateBadge(n){
+  $('menuBtn').classList.toggle('hasupd', !!n);
+  $('menuUpd').classList.toggle('hidden', !n);
+  if (n) $('menuUpd').textContent = `⬆ Uppdatera till version ${n}`;
 }
 $('updGo').onclick = () => {
   $('updBar').classList.add('hidden');
   status('Laddar ner… Öppna filen och tryck Uppdatera när den är klar.');
   location.href = APK_URL; // öppnas i webbläsaren som laddar ner den nya appen
 };
-setTimeout(checkUpdate, 4000);
-setInterval(checkUpdate, 6 * 60 * 60 * 1000);
+setTimeout(() => checkUpdate(true), 4000);
+setInterval(() => checkUpdate(), 30 * 60e3);
+// Kolla också när appen öppnas från bakgrunden (Android startar sällan om appen)
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
+try { if (NATIVE) Capacitor.Plugins.App.addListener('resume', () => checkUpdate()); } catch(_) {}
+try { Notif?.addListener('localNotificationActionPerformed', ev => { if (ev?.notification?.extra?.update) checkUpdate(true).then(() => { store.set('iptv_upd_skip', 0); $('updBar').classList.remove('hidden'); }); }); } catch(_) {}
+$('menuUpd').onclick = () => { closeDialogs(); $('updGo').click(); };
 
 // ====== FJÄRRKONTROLL / TANGENTBORD ======
 const KEY = { LEFT: [37], UP: [38], RIGHT: [39], DOWN: [40], OK: [13],
