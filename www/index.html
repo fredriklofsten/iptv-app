@@ -392,6 +392,16 @@
   </div>
 </div>
 
+<!-- Leverantörens kategorier -->
+<div id="catDialog" class="overlay hidden">
+  <div class="card cardwide">
+    <h2>📁 Kategorier</h2>
+    <div class="msg">Leverantörens egna kategorier</div>
+    <div id="catList" class="eplist" style="max-height:60vh;overflow:auto"></div>
+    <button class="f ghost" type="button" data-close>Stäng</button>
+  </div>
+</div>
+
 <!-- Välj TV -->
 <div id="castDialog" class="overlay hidden">
   <div class="card">
@@ -598,6 +608,28 @@ sb.auth.onAuthStateChange((event, session) => {
   else { unsubscribe(); castUnsub(); allChannels = []; sync = { profiles: [], pin: null, p: {} }; channels = []; playlists = []; favs.clear(); IS_TV ? (show('codeView'), startCodeLogin()) : show('loginView'); }
 });
 
+
+// ====== FELRAPPORTERING ======
+// Skickar fel till tabellen app_errors så att de går att felsöka utan skärmbilder.
+// Inloggningsuppgifter i länkar tas bort innan något skickas.
+let errCount = 0; const errSeen = new Set();
+function scrub(t){
+  t = String(t ?? '');
+  if (curXt) t = t.split(encodeURIComponent(curXt.u)).join('***').split(encodeURIComponent(curXt.p)).join('***').split(curXt.u).join('***').split(curXt.p).join('***');
+  return t.replace(/(username|password|token|access_token)=[^&\s"]+/gi, '$1=***').slice(0, 2000);
+}
+function reportError(kind, message, detail){
+  try {
+    if (!user || errCount >= 25) return;
+    const key = kind + '|' + message; if (errSeen.has(key)) return; errSeen.add(key); errCount++;
+    const platform = NATIVE ? 'android' : /Web0S|webOS/i.test(navigator.userAgent) ? 'lg' : /Tizen/i.test(navigator.userAgent) ? 'samsung' : 'web';
+    sb.from('app_errors').insert({ app_version: window.APP_BUILD || 0, platform, kind, message: scrub(message),
+      detail: JSON.parse(scrub(JSON.stringify({ ...(detail || {}), ua: navigator.userAgent.slice(0, 160), view }))) }).then(() => {}, () => {});
+  } catch(_) {}
+}
+window.addEventListener('error', e => reportError('js', e.message, { src: (e.filename || '').split('/').pop(), line: e.lineno, col: e.colno }));
+window.addEventListener('unhandledrejection', e => reportError('promise', e.reason?.message || String(e.reason)));
+
 // ====== NÄTVERK ======
 const NATIVE = !!(window.Capacitor && ((Capacitor.isNativePlatform && Capacitor.isNativePlatform()) || (Capacitor.getPlatform && Capacitor.getPlatform() === 'android') || window.androidBridge));
 // I Android-appen hämtas spellistor via Androids eget nätverk, så servrar kan inte blockera dem.
@@ -683,6 +715,7 @@ async function loadPlaylist(id, resume, force){
     idb.set(id, { key: listKey(p), ts: Date.now(), list: list.map(strip) });
   } catch (e) {
     status((curXt ? 'Kunde inte hämta kanaler från leverantören' : 'Kunde inte hämta spellistan') + ' (' + e.message + ').', true);
+    reportError('playlist', e.message, { xtream: !!curXt });
     allChannels = []; channels = []; setGroups(); render();
   }
 }
@@ -1098,11 +1131,13 @@ function typeView(t){
 
   // Filmer och serier: genrer som knappar, leverantörens kategorier i en lista
   const genres = genreCounts(list);
-  let html = `<div class="pagehead"><h2>${title}${st.genre ? ' · ' + genreIcon(st.genre) + ' ' + esc(st.genre) : ''}</h2>${sortSel}
-    <select class="f" id="catSel" title="Kategori"><option value="">Alla kategorier</option><option value="__fav" ${st.cat === '__fav' ? 'selected' : ''}>★ Min lista</option>
-    ${cats.map(([g, n]) => `<option value="${esc(g)}" ${st.cat === g ? 'selected' : ''}>${esc(g)} (${n})</option>`).join('')}</select></div>
-    <div class="chips"><button class="f chip ${!st.genre ? 'on' : ''}" type="button" data-genre="">Alla genrer</button>
-    ${genres.map(([g, n]) => `<button class="f chip ${st.genre === g ? 'on' : ''}" type="button" data-genre="${esc(g)}">${genreIcon(g)} ${esc(g)} <small>${n}</small></button>`).join('')}</div>`;
+  // En enda bläddringsrad: Alla, Min lista, genrer och sist leverantörens kategorier
+  const catLabel = st.cat && st.cat !== '__fav' ? st.cat : '';
+  let html = `<div class="pagehead"><h2>${title}${st.genre ? ' · ' + genreIcon(st.genre) + ' ' + esc(st.genre) : catLabel ? ' · ' + esc(catLabel) : ''}</h2>${sortSel}</div>
+    <div class="chips"><button class="f chip ${!st.genre && !st.cat ? 'on' : ''}" type="button" data-genre="">Alla</button>
+    <button class="f chip ${st.cat === '__fav' ? 'on' : ''}" type="button" data-cat="__fav">★ Min lista</button>
+    ${genres.map(([g, n]) => `<button class="f chip ${st.genre === g ? 'on' : ''}" type="button" data-genre="${esc(g)}">${genreIcon(g)} ${esc(g)} <small>${n}</small></button>`).join('')}
+    ${cats.length ? `<button class="f chip ${catLabel ? 'on' : ''}" type="button" data-catpick="1">📁 ${catLabel ? esc(catLabel) + ' ✕' : 'Fler kategorier…'}</button>` : ''}</div>`;
 
   const inGenre = list.filter(c => !st.genre || (c.genres || []).includes(st.genre));
   const word = t === 'movie' ? 'filmer' : 'serier';
@@ -1118,7 +1153,7 @@ function typeView(t){
   if (!st.genre) {
     // En rad per genre, sedan leverantörens kategorier
     genres.forEach(([g]) => html += row(genreIcon(g) + ' ' + g, sortList(list.filter(c => c.genres.includes(g)), by), t + '|g:' + g));
-    categories(list).slice(0, 15).forEach(([g]) => html += row(g, sortList(list.filter(c => c.group === g), by), t + '|' + g));
+    if (!genres.length) categories(list).slice(0, 15).forEach(([g]) => html += row(g, sortList(list.filter(c => c.group === g), by), t + '|' + g));
     return html;
   }
   const sortName = (SORTS[t].find(([v]) => v === by) || [0, ''])[1].toLowerCase();
@@ -1205,8 +1240,15 @@ $('view').addEventListener('click', e => {
     if ((cat || '').startsWith('g:')) { vstate[type].genre = cat.slice(2); vstate[type].cat = ''; } else { vstate[type].cat = cat || ''; vstate[type].genre = ''; }
     setView(type); return;
   }
-  if (t.dataset.genre !== undefined) { pushHist(); vstate[view].genre = t.dataset.genre; vstate[view].cat = ''; vstate[view].limit = 120; renderView(); setTimeout(() => document.querySelector('.chip.on')?.focus(), 0); return; }
-  if (t.dataset.cat !== undefined) { pushHist(); vstate[view].cat = t.dataset.cat; vstate[view].limit = view === 'live' ? 200 : 120; renderView(); setTimeout(() => document.querySelector(`.chip.on`)?.focus(), 0); return; }
+  if (t.dataset.catpick) {
+    const st = vstate[view];
+    if (st.cat && st.cat !== '__fav') { pushHist(); st.cat = ''; renderView(); return; }
+    const cats = categories(byType[view]).sort((a, b) => a[0].localeCompare(b[0], 'sv'));
+    $('catList').innerHTML = cats.map(([g, n]) => `<button class="f" type="button" data-pickcat="${esc(g)}">${esc(g)} <small>(${n})</small></button>`).join('');
+    openDialog('catDialog'); return;
+  }
+  if (t.dataset.genre !== undefined) { pushHist(); vstate[view].cat = ''; vstate[view].genre = t.dataset.genre; vstate[view].cat = ''; vstate[view].limit = 120; renderView(); setTimeout(() => document.querySelector('.chip.on')?.focus(), 0); return; }
+  if (t.dataset.cat !== undefined) { pushHist(); if (vstate[view].genre !== undefined) vstate[view].genre = ''; vstate[view].cat = t.dataset.cat; vstate[view].limit = view === 'live' ? 200 : 120; renderView(); setTimeout(() => document.querySelector(`.chip.on`)?.focus(), 0); return; }
   if (t.dataset.loadmore) { vstate[view].limit += view === 'live' ? 200 : 120; const y = $('main').scrollTop; renderView(); $('main').scrollTop = y; return; }
   if (t.dataset.play !== undefined) { const c = channels[+t.dataset.play]; lastCard = t; c.seriesId && curXt ? openDetail(c) : play(+t.dataset.play); return; }
   if (t.dataset.info !== undefined) { lastCard = t; openDetail(channels[+t.dataset.info]); return; }
@@ -1368,6 +1410,12 @@ function openUpcoming(){
   $('upList').innerHTML = up.length ? eventsByDay(up) : '<div class="msg">Inga evenemang med känd tid de närmaste två veckorna. Se alla under PPV.</div>';
   openDialog('upDialog');
 }
+
+$('catList').addEventListener('click', e => {
+  const b = e.target.closest('[data-pickcat]'); if (!b) return;
+  closeDialogs(); pushHist(); const st = vstate[view]; st.cat = b.dataset.pickcat; st.genre = ''; st.limit = 120; renderView();
+  setTimeout(() => document.querySelector('.chip.on')?.focus(), 0);
+});
 
 // ====== DETALJSIDA ======
 let serData = null, serItem = null, detailItem = null;
@@ -1665,11 +1713,12 @@ $('pExt').classList.toggle('hidden', !ExternalPlayer);
 // webbspelaren med automatisk växling till den inbyggda om kanalen inte fungerar. Sist VLC.
 const NativePlayer = (() => { try { return NATIVE ? Capacitor.Plugins?.NativePlayer || null : null; } catch(_) { return null; } })();
 function launch(c, opts = {}){
-  if (NativePlayer && !opts.web && (TYPE(c) !== 'live' || c._native)) { runNative(c); return; }
+  if (NativePlayer && !opts.web) { runNative(c); return; }
   openPlayer(c); startStream(c);
 }
 function liveFailed(msg){
   const c = nowItem;
+  reportError('live', msg, { url: c?.url, name: c?.name, native: !!c?._native });
   if (NativePlayer && c && !c._native) {
     c._native = true; status('Byter spelare…');
     stop(); exitFs(); $('player').classList.add('hidden');
@@ -1684,15 +1733,25 @@ async function runNative(c){
   const q = pos[c.url];
   const start = q && q.t > 30 && q.t < q.d - 60 ? q.t : 0;
   let r;
-  try { r = await NativePlayer.play({ url: c.url, title: c.name, startSec: start }); }
+  const args = { url: c.url, title: c.name, startSec: start, skipIntro: !!c.parent };
+  if (TYPE(c) === 'live') {
+    // Skicka med kanallistan så att man kan byta kanal i spelaren (max 1500 runt vald kanal)
+    const list = (queue.filter(x => TYPE(x) === 'live').length > 1 ? queue.filter(x => TYPE(x) === 'live') : sortList(byType.live, 'num'));
+    let i = Math.max(0, list.indexOf(c)); const from = Math.max(0, i - 750), part = list.slice(from, from + 1500);
+    args.channels = part.map(x => ({ url: x.url, name: (x.num ? x.num + '. ' : '') + x.name })); args.index = i - from;
+    c._list = part;
+  }
+  try { r = await NativePlayer.play(args); }
   catch (e) { r = { error: e?.message || 'okänt fel' }; }
   nativeBusy = false; r = r || {};
   if (r.error) {
+    reportError('player', r.error, { type: TYPE(c), url: c.url, name: c.name });
     if (ExternalPlayer) { status('Den inbyggda spelaren klarade inte den här. Öppnar i annan spelare…'); setTimeout(() => status(''), 4000); openExternal(c); }
     else status('Kunde inte spela (' + r.error + ').', true);
     return;
   }
   if (TYPE(c) !== 'live' && r.duration > 0) savePos(c, r.position, r.duration);
+  if (TYPE(c) === 'live' && c._list && r.index >= 0 && c._list[r.index]) { const last = c._list[r.index]; remember(last); current = idxOf.get(last) ?? current; nowItem = last; }
   doPush();
   if (r.ended && epCtx) { showNextDialog(); return; }
   epCtx = null;
@@ -1762,7 +1821,7 @@ async function showPlayerEpg(c){
 
 // ====== PROFILER, BARNLÅS OCH SYNKAD HISTORIK ======
 // Historik, positioner och profiler sparas i kontot så att alla enheter ser samma sak.
-// (Lagras i user_settings.last_channel_name som JSON tills en egen tabell finns.)
+// (Lagras i tabellen watch_sync.)
 const ADULT_RE = /\b(xxx|adults?|18\s?\+|porn\w*|erotic|erotik|vuxen|for adults)\b/i;
 const KIDS_RE = /kids|barn|cartoon|disney|nick|junior|baby|anim|tecknat|famil|children|kinder|boomerang/i;
 const AVATARS = ['🙂','😎','🦊','🐼','🦁','🐸','🐙','🚀','⚽','🎮','🌸','🧸'];
@@ -1778,8 +1837,11 @@ const shrink = m => Object.fromEntries(Object.entries(m).map(([k, v]) => [skey(k
 const expand = m => Object.fromEntries(Object.entries(m || {}).map(([k, v]) => [lkey(k), v]));
 
 async function fetchSync(){
-  const { data } = await sb.from('user_settings').select('last_channel_name').maybeSingle();
-  try { const r = JSON.parse(data?.last_channel_name || '{}'); return r && r.v === 1 ? r : null; } catch(_) { return null; }
+  const { data } = await sb.from('watch_sync').select('data').maybeSingle();
+  if (data?.data?.v === 1) return data.data;
+  // äldre versioner sparade i user_settings
+  const old = await sb.from('user_settings').select('last_channel_name').maybeSingle();
+  try { const r = JSON.parse(old.data?.last_channel_name || '{}'); return r && r.v === 1 ? r : null; } catch(_) { return null; }
 }
 function mergeMaps(a, b, tsOf){ const out = { ...a }; for (const [k, v] of Object.entries(b || {})) if (!(k in out) || tsOf(v) > tsOf(out[k])) out[k] = v; return out; }
 const tsPos = v => v?.at || 0, tsNum = v => +v || 0;
@@ -1817,7 +1879,8 @@ async function doPush(){
     trimMap(hist, 400); trimMap(pos, 300); trimMap(done, 1500);
     sync.p[profileId] = { pos: shrink(pos), done: shrink(done), hist: shrink(hist) };
     const { deleted, ...out } = sync;
-    await sb.from('user_settings').upsert({ user_id: user.id, last_channel_name: JSON.stringify({ v: 1, ...out }), updated_at: new Date().toISOString() });
+    const { error } = await sb.from('watch_sync').upsert({ user_id: user.id, data: { v: 1, ...out }, updated_at: new Date().toISOString() });
+    if (error) reportError('sync', error.message);
     syncDirty = false;
   } catch(_) {}
 }
