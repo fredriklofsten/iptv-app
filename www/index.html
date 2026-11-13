@@ -153,6 +153,20 @@
   button.card.wide.hasepg img{padding-bottom:42%}
   button.card.wide.hasepg .ctitle{bottom:24px;background:none;padding-bottom:0}
   .eplist button.on{border-color:var(--acc);background:#1c2a45}
+  .profpick{text-align:center;width:min(900px,100%)}
+  .profpick h1{font-size:2.4em;margin:0 0 30px}
+  .proflist{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin-bottom:30px}
+  .prof{background:none;border:0;color:#ccc;display:flex;flex-direction:column;align-items:center;gap:10px;padding:6px}
+  .prof .av{width:120px;height:120px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:64px;background:linear-gradient(135deg,#2b5876,#4e4376);border:3px solid transparent}
+  .prof:focus .av,.prof:hover .av{border-color:#fff}
+  .prof.kids .av{background:linear-gradient(135deg,#f7971e,#ffd200)}
+  .prof.add .av{background:#222;font-size:50px;color:#888}
+  .prof.edit .av::after{content:'✎';position:absolute;font-size:28px}
+  .avatars{display:flex;flex-wrap:wrap;gap:8px}
+  .avatars button{font-size:1.6em;padding:.2em .4em;background:#1f2129;border:2px solid transparent}
+  .avatars button.on{border-color:var(--acc)}
+  .pinbox{font-size:2em!important;text-align:center;letter-spacing:.5em;max-width:220px;margin:0 auto}
+  @media (max-width:760px){ .prof .av{width:90px;height:90px;font-size:48px} .profpick h1{font-size:1.8em} }
   .tvhint{position:absolute;bottom:70px;left:0;right:0;text-align:center;font-size:.8em;color:#aaa;transition:opacity .3s}
   .player.idle .tvhint{opacity:0}
 
@@ -331,6 +345,38 @@
   </div>
 </div>
 
+<!-- Vem tittar? -->
+<div id="profileDialog" class="overlay hidden">
+  <div class="profpick">
+    <h1>Vem tittar?</h1>
+    <div id="profList" class="proflist"></div>
+    <button class="f ghost" type="button" id="profManage">✎ Hantera profiler</button>
+  </div>
+</div>
+<div id="profEdit" class="overlay hidden">
+  <div class="card">
+    <h2 id="peTitle">Profil</h2>
+    <input class="f" id="peName" type="text" placeholder="Namn" maxlength="20">
+    <div class="avatars" id="peAv"></div>
+    <label class="chk"><input class="f" id="peKids" type="checkbox"> 🧸 Barnprofil (bara barninnehåll)</label>
+    <div class="msg" id="peMsg"></div>
+    <div class="row"><button class="f" type="button" id="peSave">Spara</button><button class="f ghost" type="button" id="peDel">Ta bort</button></div>
+    <button class="f ghost" type="button" data-close>Avbryt</button>
+  </div>
+</div>
+<!-- PIN -->
+<div id="pinDialog" class="overlay hidden">
+  <div class="card" style="text-align:center">
+    <h2 id="pinTitle">Ange PIN</h2>
+    <div class="msg" id="pinText"></div>
+    <input class="f pinbox" id="pinIn" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off">
+    <input class="f pinbox hidden" id="pinIn2" type="password" inputmode="numeric" maxlength="4" placeholder="Upprepa" autocomplete="off">
+    <div class="msg" id="pinMsg"></div>
+    <div class="row"><button class="f" type="button" id="pinOk">OK</button><button class="f ghost hidden" type="button" id="pinRemove">Ta bort barnlås</button></div>
+    <button class="f ghost" type="button" data-close>Avbryt</button>
+  </div>
+</div>
+
 <!-- Välj TV -->
 <div id="castDialog" class="overlay hidden">
   <div class="card">
@@ -370,6 +416,9 @@
     <select class="f" id="plSelect"></select>
     <button class="f ghost" type="button" id="plManageBtn">Hantera spellistor</button>
     <button class="f ghost" type="button" id="plRefresh">↻ Uppdatera listan nu</button>
+    <button class="f ghost" type="button" id="profSwitch">👤 Byt profil</button>
+    <button class="f ghost" type="button" id="pinBtn">🔒 Barnlås (PIN)</button>
+    <button class="f ghost" type="button" id="adultBtn">🔞 Visa vuxeninnehåll</button>
     <button class="f ghost" type="button" id="pairBtn">Koppla TV</button>
     <button class="f ghost" type="button" id="logoutBtn">Logga ut</button>
     <button class="f ghost" type="button" id="logoutBtn">Logga ut</button>
@@ -529,7 +578,7 @@ sb.auth.onAuthStateChange((event, session) => {
   authReady = true;
   user = u;
   if (user) { show('app'); loadAll(); subscribe(); castSubscribe(); }
-  else { unsubscribe(); castUnsub(); channels = []; playlists = []; favs.clear(); IS_TV ? (show('codeView'), startCodeLogin()) : show('loginView'); }
+  else { unsubscribe(); castUnsub(); allChannels = []; sync = { profiles: [], pin: null, p: {} }; channels = []; playlists = []; favs.clear(); IS_TV ? (show('codeView'), startCodeLogin()) : show('loginView'); }
 });
 
 // ====== NÄTVERK ======
@@ -555,6 +604,13 @@ async function loadAll(){
   favs = new Map((fv.data || []).map(f => [f.channel_url, f]));
   settings = st.data || {};
   renderPlSelect();
+  await loadSync();
+  if (!sync.profiles.some(p => p.id === profileId)) profileId = null;
+  if (!profileId && sync.profiles.length === 1) profileId = sync.profiles[0].id;
+  if (!profileId) await chooseProfile();
+  store.set('iptv_profile', profileId);
+  loadProfileData();
+  if (!sync.p[profileId] || !Object.keys(sync.p[profileId].pos || {}).length) pushSync(); // första gången: spara profiler i kontot
   const id = playlists.some(p => p.id === settings.last_playlist_id) ? settings.last_playlist_id : playlists[0]?.id;
   if (id) { $('plSelect').value = id; await loadPlaylist(id, true); }
   else { channels = []; setGroups(); render(); }
@@ -589,7 +645,7 @@ async function fetchList(p){
   return parseM3U(text || '');
 }
 function applyList(id, list, resume){
-  channels = list; setGroups(); render();
+  allChannels = list; mergeRemote(); applyFilter();
   status(''); $('main').scrollTop = 0;
   if (resume && settings.last_channel_url) { const i = channels.findIndex(c => c.url === settings.last_channel_url); if (i > -1) current = i; }
 }
@@ -610,7 +666,7 @@ async function loadPlaylist(id, resume, force){
     idb.set(id, { key: listKey(p), ts: Date.now(), list: list.map(strip) });
   } catch (e) {
     status((curXt ? 'Kunde inte hämta kanaler från leverantören' : 'Kunde inte hämta spellistan') + ' (' + e.message + ').', true);
-    channels = []; setGroups(); render();
+    allChannels = []; channels = []; setGroups(); render();
   }
 }
 async function refreshInBackground(p, id){
@@ -621,7 +677,7 @@ async function refreshInBackground(p, id){
     // Byt bara ut listan om användaren inte tittar på något just nu
     if (!$('player').classList.contains('hidden') || openDialogEl()) return;
     const y = $('main').scrollTop, f = document.activeElement?.dataset?.i;
-    channels = list; setGroups(); renderView(); $('main').scrollTop = y;
+    allChannels = list; mergeRemote(); applyFilter(); $('main').scrollTop = y;
     if (f !== undefined) document.querySelector(`.card[data-i="${f}"]`)?.focus();
   } catch(_) {}
 }
@@ -811,6 +867,7 @@ function openDialog(id){
 }
 function closeDialogs(){
   const open = [...document.querySelectorAll('.overlay:not(.hidden):not(#player)')].pop(); if (!open) return false;
+  if (open.id === 'profileDialog' && profResolve) return true; // måste välja profil först
   open.classList.add('hidden'); msg($('pairMsg'), ''); msg($('plMsg'), '');
   if (open.id === 'detail') detailItem = null;
   if ($('player').classList.contains('hidden')) lastFocus?.focus();
@@ -854,14 +911,14 @@ function trimMap(m, n){ const k = Object.keys(m); if (k.length > n) k.sort((a, b
 function savePos(c){
   if (!c || TYPE(c) === 'live' || !video.duration || !isFinite(video.duration)) return;
   const t = video.currentTime, d = video.duration;
-  if (d - t < Math.max(60, d * 0.05)) { delete pos[c.url]; done[c.url] = Date.now(); trimMap(done, 2000); store.set('iptv_done', done); }
+  if (d - t < Math.max(60, d * 0.05)) { delete pos[c.url]; done[c.url] = Date.now(); trimMap(done, 2000); store.set(pk('done'), done); pushSync(); }
   else if (t > 30) pos[c.url] = { t, d, at: Date.now() };
-  trimMap(pos, 500); store.set('iptv_pos', pos);
-  if (c.parent) { hist[c.parent.url] = Date.now(); store.set('iptv_hist', hist); }
+  trimMap(pos, 500); store.set(pk('pos'), pos); pushSync();
+  if (c.parent) { hist[c.parent.url] = Date.now(); store.set(pk('hist'), hist); pushSync(); }
 }
 const progress = c => { const q = pos[c.url]; return q ? Math.min(100, Math.round(q.t / q.d * 100)) : 0; };
 const fmtTime = t => { t = Math.floor(t); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); };
-function remember(c){ hist[c.url] = Date.now(); store.set('iptv_hist', hist); }
+function remember(c){ hist[c.url] = Date.now(); store.set(pk('hist'), hist); pushSync(); }
 
 const TYPE = c => c.type || 'live';
 let view = 'home', byType = { live: [], movie: [], series: [] }, idxOf = new Map();
@@ -1426,7 +1483,7 @@ function play(i){
   if (pendingCast) { castTo(c); return; }
   if (!queue.includes(c)) queue = TYPE(c) === 'live' ? sortList(byType.live, 'num') : [c];
   remember(c);
-  saveSettings({ last_channel_url: c.url, last_channel_name: c.name });
+  saveSettings({ last_channel_url: c.url });
   openPlayer(c);
   startStream(c);
 }
@@ -1498,7 +1555,7 @@ function openPlayer(c){
   if (NATIVE || matchMedia('(pointer:coarse)').matches) enterFs();
 }
 function closePlayer(){
-  savePos(nowItem); epCtx = null; hideNext();
+  savePos(nowItem); clearTimeout(syncTimer); doPush(); epCtx = null; hideNext();
   stop(); exitFs();
   $('player').classList.add('hidden'); status('');
   const i = lastCard?.dataset.i;
@@ -1522,7 +1579,7 @@ function wake(){
 ['mousemove','touchstart','click'].forEach(ev => $('player').addEventListener(ev, wake, { passive: true }));
 video.addEventListener('pause', wake);
 $('pBack').onclick = closePlayer;
-$('pRestart').onclick = () => { video.currentTime = 0; delete pos[nowItem?.url]; store.set('iptv_pos', pos); $('pRestart').classList.add('hidden'); };
+$('pRestart').onclick = () => { video.currentTime = 0; delete pos[nowItem?.url]; store.set(pk('pos'), pos); pushSync(); $('pRestart').classList.add('hidden'); };
 $('pFav').onclick = () => { const c = nowItem?.parent || nowItem; if (c) toggleFav(c); };
 
 function step(d){
@@ -1620,6 +1677,180 @@ async function showPlayerEpg(c){
   const e = await getEpg(c); if (nowItem !== c || !e) return;
   $('pEpg').textContent = [e.now && `Nu: ${e.now.title} (${hm(e.now.start)}–${hm(e.now.stop)})`, e.next && `Sedan ${hm(e.next.start)}: ${e.next.title}`].filter(Boolean).join('  ·  ');
 }
+
+
+// ====== PROFILER, BARNLÅS OCH SYNKAD HISTORIK ======
+// Historik, positioner och profiler sparas i kontot så att alla enheter ser samma sak.
+// (Lagras i user_settings.last_channel_name som JSON tills en egen tabell finns.)
+const ADULT_RE = /\b(xxx|adults?|18\s?\+|porn\w*|erotic|erotik|vuxen|for adults)\b/i;
+const KIDS_RE = /kids|barn|cartoon|disney|nick|junior|baby|anim|tecknat|famil|children|kinder|boomerang/i;
+const AVATARS = ['🙂','😎','🦊','🐼','🦁','🐸','🐙','🚀','⚽','🎮','🌸','🧸'];
+let allChannels = [], sync = { profiles: [], pin: null, p: {} }, profileId = store.get('iptv_profile', null), adultOpen = false;
+const curProfile = () => sync.profiles.find(p => p.id === profileId) || sync.profiles[0] || null;
+function pk(k){ return 'iptv_' + k + '_' + (profileId || 'x'); }
+function hashPin(pin){ let h = 2166136261; const s = (user?.id || '') + ':' + pin; for (let n = 0; n < 3; n++) for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i) + n; h = Math.imul(h, 16777619) >>> 0; } return h.toString(16); }
+
+// Korta nycklar (utan inloggningsuppgifterna i länkarna) i det som sparas i kontot
+const skey = u => !curXt ? u : u.split(curXt.s + '/').join('~/').split(`/${encodeURIComponent(curXt.u)}/${encodeURIComponent(curXt.p)}/`).join('/@/');
+const lkey = k => !curXt ? k : k.replace('~/', curXt.s + '/').replace('/@/', `/${encodeURIComponent(curXt.u)}/${encodeURIComponent(curXt.p)}/`);
+const shrink = m => Object.fromEntries(Object.entries(m).map(([k, v]) => [skey(k), v]));
+const expand = m => Object.fromEntries(Object.entries(m || {}).map(([k, v]) => [lkey(k), v]));
+
+async function fetchSync(){
+  const { data } = await sb.from('user_settings').select('last_channel_name').maybeSingle();
+  try { const r = JSON.parse(data?.last_channel_name || '{}'); return r && r.v === 1 ? r : null; } catch(_) { return null; }
+}
+function mergeMaps(a, b, tsOf){ const out = { ...a }; for (const [k, v] of Object.entries(b || {})) if (!(k in out) || tsOf(v) > tsOf(out[k])) out[k] = v; return out; }
+const tsPos = v => v?.at || 0, tsNum = v => +v || 0;
+async function loadSync(){
+  const r = await fetchSync();
+  if (r) sync = { profiles: r.profiles || [], pin: r.pin || null, p: r.p || {} };
+  if (!sync.profiles.length) sync.profiles = [{ id: 'p' + randomSecret().slice(0, 6), name: (user.email || 'Jag').split('@')[0].replace(/\W.*/, '') || 'Jag', kids: false, av: '🙂' }];
+}
+function loadProfileData(){
+  const legacy = k => store.get('iptv_' + k, {});
+  hist = store.get(pk('hist'), null) || (sync.profiles[0]?.id === profileId ? legacy('hist') : {});
+  pos = store.get(pk('pos'), null) || (sync.profiles[0]?.id === profileId ? legacy('pos') : {});
+  done = store.get(pk('done'), null) || (sync.profiles[0]?.id === profileId ? legacy('done') : {});
+}
+// Slå ihop det som finns i kontot med det som finns på enheten
+function mergeRemote(){
+  const r = sync.p[profileId]; if (!r || !allChannels.length) return; // vänta tills listan (och länkformatet) är känd
+  pos = mergeMaps(pos, expand(r.pos), tsPos);
+  done = mergeMaps(done, expand(r.done), tsNum);
+  hist = mergeMaps(hist, expand(r.hist), tsNum);
+  for (const k of Object.keys(done)) if (pos[k] && pos[k].at < done[k]) delete pos[k];
+  store.set(pk('hist'), hist); store.set(pk('pos'), pos); store.set(pk('done'), done);
+}
+let syncTimer = null, syncDirty = false;
+function pushSync(){ if (!user) return; clearTimeout(syncTimer); syncTimer = setTimeout(doPush, 4000); }
+async function doPush(){
+  try {
+    const r = await fetchSync();
+    if (r) { // ta med ändringar från andra enheter först
+      if (!syncDirty) { sync.pin = r.pin ?? null; if (r.profiles?.length) sync.profiles = r.profiles; }
+      for (const [pid, d] of Object.entries(r.p || {})) if (pid !== profileId) sync.p[pid] = d;
+      if (r.p?.[profileId]) { sync.p[profileId] = r.p[profileId]; mergeRemote(); }
+      for (const prof of r.profiles || []) if (!sync.profiles.some(x => x.id === prof.id) && !sync.deleted?.includes(prof.id)) sync.profiles.push(prof);
+    }
+    trimMap(hist, 400); trimMap(pos, 300); trimMap(done, 1500);
+    sync.p[profileId] = { pos: shrink(pos), done: shrink(done), hist: shrink(hist) };
+    const { deleted, ...out } = sync;
+    await sb.from('user_settings').upsert({ user_id: user.id, last_channel_name: JSON.stringify({ v: 1, ...out }), updated_at: new Date().toISOString() });
+    syncDirty = false;
+  } catch(_) {}
+}
+// Hämta nytt när appen kommer tillbaka i förgrunden
+document.addEventListener('visibilitychange', async () => {
+  if (document.hidden || !user || !allChannels.length) return;
+  const r = await fetchSync(); if (!r) return;
+  sync.p = { ...sync.p, ...r.p }; sync.profiles = r.profiles || sync.profiles; sync.pin = r.pin ?? null;
+  mergeRemote();
+  if (view === 'home' && $('player').classList.contains('hidden') && !openDialogEl()) { const y = $('main').scrollTop; renderView(); $('main').scrollTop = y; }
+});
+
+// Filtrera bort vuxeninnehåll och visa bara barninnehåll i barnprofiler
+function applyFilter(){
+  const kids = curProfile()?.kids;
+  channels = allChannels.filter(c => {
+    const txt = c.group + ' ' + c.name;
+    if ((kids || !adultOpen) && ADULT_RE.test(txt)) return false;
+    if (kids) return KIDS_RE.test(txt + ' ' + (c.genre || ''));
+    return true;
+  });
+  setGroups(); render();
+  $('menuBtn').textContent = (curProfile()?.av || '☰') + ' ☰';
+  $('adultBtn').textContent = adultOpen ? '🔞 Dölj vuxeninnehåll' : '🔞 Visa vuxeninnehåll';
+  $('adultBtn').classList.toggle('hidden', !!kids);
+}
+
+// --- Vem tittar? ---
+let profManaging = false, profResolve = null;
+function renderProfiles(){
+  $('profList').innerHTML = sync.profiles.map(p => `<button class="f prof ${p.kids ? 'kids' : ''} ${profManaging ? 'edit' : ''}" type="button" data-prof="${p.id}">
+    <span class="av">${p.av || '🙂'}</span><span>${esc(p.name)}${p.kids ? ' 🧸' : ''}</span></button>`).join('') +
+    (sync.profiles.length < 6 ? `<button class="f prof add" type="button" data-prof="__new"><span class="av">＋</span><span>Lägg till</span></button>` : '');
+  $('profManage').textContent = profManaging ? '✓ Klar' : '✎ Hantera profiler';
+}
+function chooseProfile(){
+  return new Promise(res => { profResolve = res; profManaging = false; renderProfiles(); openDialog('profileDialog'); });
+}
+$('profManage').onclick = () => { profManaging = !profManaging; renderProfiles(); };
+$('profList').onclick = e => {
+  const b = e.target.closest('[data-prof]'); if (!b) return;
+  const id = b.dataset.prof;
+  if (id === '__new' || profManaging) return editProfile(id === '__new' ? null : id);
+  const target = sync.profiles.find(p => p.id === id);
+  const go = () => { closeDialogs(); switchProfile(id); };
+  // Från barnprofil till vuxenprofil krävs PIN
+  if (curProfile()?.kids && !target.kids && sync.pin && profileId !== id && allChannels.length) return askPin('Byta från barnprofilen', go);
+  go();
+};
+function switchProfile(id){
+  profileId = id; store.set('iptv_profile', id); adultOpen = false;
+  loadProfileData(); mergeRemote();
+  if (profResolve) { const r = profResolve; profResolve = null; r(); return; }
+  view = 'home'; viewHistory = []; applyFilter(); $('main').scrollTop = 0;
+}
+let peId = null, peAv = '🙂';
+function editProfile(id){
+  peId = id; const p = sync.profiles.find(x => x.id === id) || { name: '', kids: false, av: AVATARS[sync.profiles.length % AVATARS.length] };
+  $('peTitle').textContent = id ? 'Ändra profil' : 'Ny profil';
+  $('peName').value = p.name; $('peKids').checked = !!p.kids; peAv = p.av || '🙂';
+  $('peAv').innerHTML = AVATARS.map(a => `<button class="f ${a === peAv ? 'on' : ''}" type="button" data-av="${a}">${a}</button>`).join('');
+  $('peDel').classList.toggle('hidden', !id || sync.profiles.length < 2); msg($('peMsg'), '');
+  openDialog('profEdit');
+}
+$('peAv').onclick = e => { const b = e.target.closest('[data-av]'); if (!b) return; peAv = b.dataset.av; $('peAv').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); };
+$('peSave').onclick = () => {
+  const name = $('peName').value.trim(); if (!name) return msg($('peMsg'), 'Skriv ett namn.', true);
+  if (peId) Object.assign(sync.profiles.find(x => x.id === peId), { name, kids: $('peKids').checked, av: peAv });
+  else sync.profiles.push({ id: 'p' + randomSecret().slice(0, 6), name, kids: $('peKids').checked, av: peAv });
+  syncDirty = true; doPush(); renderProfiles(); openDialog('profileDialog');
+};
+$('peDel').onclick = () => {
+  if ($('peDel').dataset.sure !== '1') { $('peDel').dataset.sure = '1'; $('peDel').textContent = 'Säker?'; return; }
+  $('peDel').dataset.sure = ''; $('peDel').textContent = 'Ta bort';
+  sync.profiles = sync.profiles.filter(x => x.id !== peId); delete sync.p[peId]; (sync.deleted = sync.deleted || []).push(peId);
+  if (profileId === peId) profileId = sync.profiles[0].id;
+  syncDirty = true; doPush(); renderProfiles(); openDialog('profileDialog');
+};
+$('profSwitch').onclick = () => { profManaging = false; renderProfiles(); openDialog('profileDialog'); };
+
+// --- PIN och vuxeninnehåll ---
+let pinCb = null, pinMode = 'ask';
+function askPin(text, cb){
+  pinMode = 'ask'; pinCb = cb;
+  $('pinTitle').textContent = 'Ange PIN'; $('pinText').textContent = text;
+  $('pinIn').value = ''; $('pinIn2').classList.add('hidden'); $('pinRemove').classList.add('hidden'); msg($('pinMsg'), '');
+  openDialog('pinDialog');
+}
+$('pinBtn').onclick = () => {
+  const go = () => {
+    pinMode = 'set'; $('pinTitle').textContent = sync.pin ? 'Ändra PIN' : 'Skapa barnlås';
+    $('pinText').textContent = 'Välj en kod med 4 siffror. Den behövs för att visa vuxeninnehåll och för att lämna en barnprofil.';
+    $('pinIn').value = ''; $('pinIn2').value = ''; $('pinIn2').classList.remove('hidden'); $('pinRemove').classList.toggle('hidden', !sync.pin); msg($('pinMsg'), '');
+    openDialog('pinDialog');
+  };
+  sync.pin ? askPin('Ange nuvarande PIN', go) : go();
+};
+$('pinOk').onclick = () => {
+  const v = $('pinIn').value.trim();
+  if (pinMode === 'ask') {
+    if (hashPin(v) !== sync.pin) { msg($('pinMsg'), 'Fel PIN.', true); $('pinIn').value = ''; return; }
+    const cb = pinCb; pinCb = null; closeDialogs(); cb && cb(); return;
+  }
+  if (!/^\d{4}$/.test(v)) return msg($('pinMsg'), 'PIN ska vara 4 siffror.', true);
+  if (v !== $('pinIn2').value.trim()) return msg($('pinMsg'), 'Koderna är inte lika.', true);
+  sync.pin = hashPin(v); syncDirty = true; doPush(); closeDialogs(); status('🔒 Barnlås sparat'); setTimeout(() => status(''), 2000);
+};
+$('pinIn').addEventListener('keydown', e => { if (e.key === 'Enter') $('pinOk').click(); });
+$('pinRemove').onclick = () => { sync.pin = null; syncDirty = true; doPush(); closeDialogs(); status('Barnlåset är borttaget'); setTimeout(() => status(''), 2000); };
+$('adultBtn').onclick = () => {
+  if (adultOpen) { adultOpen = false; closeDialogs(); applyFilter(); return; }
+  const open = () => { adultOpen = true; closeDialogs(); applyFilter(); };
+  sync.pin ? askPin('Visa vuxeninnehåll', open) : open();
+};
 
 // ====== SPELA PÅ TV (casta till din egen app på TV:n) ======
 const deviceId = store.get('iptv_dev', null) || (() => { const id = randomSecret().slice(0, 12); store.set('iptv_dev', id); return id; })();
