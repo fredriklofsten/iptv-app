@@ -56,7 +56,36 @@
   .evtxt{flex:1;min-width:0}
   .evtxt b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .evtxt small{color:var(--mute)}
+  .evbell{margin-left:auto}
   .livebadge{background:#e50914;color:#fff;border-radius:4px;padding:1px 6px;font-size:.8em}
+  .guidewrap{margin:0 4% 20px;border:1px solid #23252e;border-radius:8px;overflow:auto;max-height:calc(100vh - 230px);position:relative;background:#101116}
+  .ghead,.grow{display:flex;min-width:max-content}
+  .ghead{position:sticky;top:0;z-index:3;background:#16171d;border-bottom:1px solid #23252e}
+  .gname{position:sticky;left:0;z-index:2;width:170px;flex-shrink:0;background:#16171d;border-right:1px solid #23252e;display:flex;align-items:center;gap:8px;padding:0 10px;font-size:.85em;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#fff;border-top:0;border-bottom:0;border-left:0;text-align:left}
+  .gname img{width:34px;height:22px;object-fit:contain;flex-shrink:0}
+  .ghead .gname{z-index:4}
+  .gtimes{position:relative;height:30px}
+  .gtimes span{position:absolute;top:6px;font-size:.78em;color:#9aa0ad;border-left:1px solid #333;padding-left:4px}
+  .gtrack{position:relative;height:58px;border-bottom:1px solid #1d1f27}
+  .gprog{position:absolute;top:4px;bottom:4px;background:#1d2030;border:1px solid #2b2f40;border-radius:5px;color:#e8eaf0;text-align:left;padding:4px 8px;overflow:hidden;font-size:.8em;line-height:1.25}
+  .gprog small{display:block;color:#9aa0ad;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gprog b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+  .gprog.now{background:#243559;border-color:#4f8cff}
+  .gprog.past{background:#15161c;color:#8a8f9c}
+  .gprog.arch{border-style:dashed;border-color:#6b4e16}
+  .gprog.arch::after{content:'⟲';position:absolute;right:6px;top:4px;color:#e5a00d}
+  .gprog:focus{outline:3px solid var(--focus);z-index:2}
+  .gnow{position:absolute;top:0;bottom:0;width:2px;background:#e50914;z-index:1;pointer-events:none}
+  .gempty{position:absolute;left:8px;top:18px;color:#666;font-size:.8em}
+  .mgrid{display:grid;gap:6px;padding:0 4% 20px;grid-template-columns:1fr 1fr}
+  .mgrid.n1{grid-template-columns:1fr}
+  .mslot{position:relative;aspect-ratio:16/9;background:#000;border-radius:8px;overflow:hidden;border:2px solid transparent}
+  .mslot.aud{border-color:var(--acc)}
+  .mslot video{width:100%;height:100%;object-fit:contain;background:#000}
+  .mbar{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:6px;padding:6px;background:linear-gradient(0deg,rgba(0,0,0,.85),transparent);font-size:.8em}
+  .mbar span{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .madd{border:2px dashed #333;color:#aaa;font-size:1em}
+  @media (max-width:760px){ .mgrid{grid-template-columns:1fr} }
   #topnav.solid{background:#0b0b0f;box-shadow:0 2px 12px rgba(0,0,0,.5)}
   .brand{font-size:1.35em;letter-spacing:.04em;color:var(--focus);white-space:nowrap}
   .brand b{color:#fff}
@@ -183,7 +212,7 @@
     .navtabs{position:fixed;left:0;right:0;bottom:0;background:#121318;border-top:1px solid #23252e;justify-content:space-around;padding:4px 2px calc(4px + env(safe-area-inset-bottom));z-index:8;gap:0}
     .nav{display:flex;flex-direction:column;align-items:center;font-size:.72em;padding:.4em .2em;flex:1;background:none!important}
     .nav span{margin:0 0 2px;font-size:1.5em}
-    .nav[data-view=fav]{display:none}
+    .nav[data-view=fav],.nav[data-view=guide]{display:none}
     .notice{margin-top:-10px}
     .nav.on{color:#fff}
     .nav:not(.on){color:#8a8f9c}
@@ -253,6 +282,7 @@
       <button class="f nav" type="button" data-view="live"><span>📺</span>Live-TV</button>
       <button class="f nav" type="button" data-view="movie"><span>🎬</span>Filmer</button>
       <button class="f nav" type="button" data-view="series"><span>🎞️</span>Serier</button>
+      <button class="f nav hidden" type="button" data-view="guide"><span>🗓️</span>TV-guide</button>
       <button class="f nav hidden" type="button" data-view="ppv"><span>🥊</span>PPV</button>
       <button class="f nav" type="button" data-view="fav"><span>★</span>Min lista</button>
       <button class="f nav" type="button" data-view="search"><span>🔍</span>Sök</button>
@@ -305,17 +335,20 @@
             <button class="f play" type="button" id="dPlay">▶ Spela</button>
             <button class="f ghost hidden" type="button" id="dCast">📺 Spela på TV</button>
             <button class="f ghost" type="button" id="dFav">+ Min lista</button>
+            <button class="f ghost hidden" type="button" id="dTrailer">🎞️ Trailer</button>
           </div>
         </div>
       </div>
     </div>
     <div class="dbody">
       <p id="dPlot"></p>
+      <p class="msg" id="dCastLine"></p>
       <div id="dSeries" class="hidden">
         <select class="f" id="serSeason"></select>
         <div id="serEps" class="eplist"></div>
       </div>
       <div class="msg" id="serMsg"></div>
+      <div id="dSimilar"></div>
     </div>
   </div>
 </div>
@@ -398,6 +431,28 @@
     <h2>📁 Kategorier</h2>
     <div class="msg">Leverantörens egna kategorier</div>
     <div id="catList" class="eplist" style="max-height:60vh;overflow:auto"></div>
+    <button class="f ghost" type="button" data-close>Stäng</button>
+  </div>
+</div>
+
+<!-- Programinfo (kommande program) -->
+<div id="progDialog" class="overlay hidden">
+  <div class="card">
+    <h2 id="piTitle"></h2>
+    <div class="hmeta" id="piMeta"></div>
+    <p class="msg" id="piDesc"></p>
+    <button class="f" type="button" id="piRemind">🔔 Påminn mig</button>
+    <button class="f ghost" type="button" id="piPlay">▶ Titta på kanalen nu</button>
+    <button class="f ghost" type="button" data-close>Stäng</button>
+  </div>
+</div>
+
+<!-- Multivy: välj kanal -->
+<div id="multiPick" class="overlay hidden">
+  <div class="card cardwide">
+    <h2>Lägg till kanal</h2>
+    <input class="f" id="mpSearch" type="text" placeholder="Sök kanal eller match…" autocomplete="off">
+    <div id="mpList" class="eplist" style="max-height:55vh;overflow:auto"></div>
     <button class="f ghost" type="button" data-close>Stäng</button>
   </div>
 </div>
@@ -615,7 +670,7 @@ sb.auth.onAuthStateChange((event, session) => {
 let errCount = 0; const errSeen = new Set();
 function scrub(t){
   t = String(t ?? '');
-  if (curXt) t = t.split(encodeURIComponent(curXt.u)).join('***').split(encodeURIComponent(curXt.p)).join('***').split(curXt.u).join('***').split(curXt.p).join('***');
+  if (curXt) { const up = `/${encodeURIComponent(curXt.u)}/${encodeURIComponent(curXt.p)}/`; t = t.split(up).join('/***/***/'); if (curXt.p.length >= 4) t = t.split(curXt.p).join('***'); }
   return t.replace(/(username|password|token|access_token)=[^&\s"]+/gi, '$1=***').slice(0, 2000);
 }
 function reportError(kind, message, detail){
@@ -892,7 +947,7 @@ async function loadXtream(x){
     const rating = s => parseFloat(s.rating) || (parseFloat(s.rating_5based) * 2) || 0;
     return [
       ...live.map(s => ({ type: 'live', name: s.name, logo: s.stream_icon || '', group: cm[String(s.category_id)] || 'Övrigt',
-        num: +s.num || 0, added: +s.added || 0, sid: s.stream_id, url: `${x.s}/live/${path}/${s.stream_id}.m3u8` })),
+        num: +s.num || 0, added: +s.added || 0, sid: s.stream_id, arch: +s.tv_archive || 0, archDays: +s.tv_archive_duration || 0, url: `${x.s}/live/${path}/${s.stream_id}.m3u8` })),
       ...arr(vod).map(s => ({ type: 'movie', name: s.name, logo: s.stream_icon || '', group: vm[String(s.category_id)] || 'Övrigt',
         added: +s.added || 0, rating: rating(s), year: s.year || '', vodId: s.stream_id, genre: s.genre || '',
         url: `${x.s}/movie/${path}/${s.stream_id}.${s.container_extension || 'mp4'}` })),
@@ -972,7 +1027,7 @@ function remember(c){ hist[c.url] = Date.now(); store.set(pk('hist'), hist); pus
 
 const TYPE = c => c.type || 'live';
 let view = 'home', byType = { live: [], movie: [], series: [] }, idxOf = new Map();
-const vstate = { live: { cat: '', limit: 200 }, movie: { cat: '', genre: '', limit: 120 }, series: { cat: '', genre: '', limit: 120 }, fav: {}, search: { q: '' }, ppv: { sport: '' } };
+const vstate = { live: { cat: '', limit: 200 }, movie: { cat: '', genre: '', limit: 120 }, series: { cat: '', genre: '', limit: 120 }, fav: {}, search: { q: '' }, ppv: { sport: '' }, guide: { cat: '' } };
 
 // Anropas när en spellista har lästs in
 function setGroups(){
@@ -983,6 +1038,8 @@ function setGroups(){
   });
   analyzePPV();
   document.querySelector('.nav[data-view=ppv]').classList.toggle('hidden', !ppvList.length);
+  document.querySelector('.nav[data-view=guide]').classList.toggle('hidden', !(curXt && byType.live.some(c => c.sid)));
+  if (view === 'guide' && !curXt) view = 'home';
   if (view === 'ppv' && !ppvList.length) view = 'home';
   if (byType[view] && !byType[view].length) view = 'home';
   ['live','movie','series'].forEach(t => { vstate[t].cat = ''; vstate[t].genre = ''; });
@@ -1057,6 +1114,7 @@ function categories(list){
 }
 
 function renderView(){
+  if (view !== 'multi') stopMulti();
   document.querySelectorAll('.nav').forEach(b => b.classList.toggle('on', b.dataset.view === view));
   const v = $('view');
   if (!channels.length) {
@@ -1067,6 +1125,8 @@ function renderView(){
   if (view === 'home') v.innerHTML = homeView();
   else if (view === 'fav') v.innerHTML = favView();
   else if (view === 'ppv') v.innerHTML = ppvView();
+  else if (view === 'multi') { stopMulti(); v.innerHTML = multiView(); setTimeout(startMulti, 0); }
+  else if (view === 'guide') { v.innerHTML = guideView(); setTimeout(initGuide, 0); }
   else if (view === 'search') { v.innerHTML = searchView(); const s = $('searchInput'); s.value = vstate.search.q; renderSearch(); }
   else v.innerHTML = typeView(view);
   _rv();
@@ -1083,6 +1143,7 @@ function homeView(){
   if (ppvList.length) setTimeout(loadPpvEpg, 1500);
   html += row('Fortsätt titta', watched);
   html += row('Senast sedda kanaler', watchedLive);
+  html += row('Rekommenderat för dig', recommendations());
   html += row('Min lista', favList, 'fav');
   html += row('Nya filmer', sortList(m, 'new'), 'movie|');
   if (m.some(c => c.year)) html += row('Nyaste filmerna (utgivningsår)', sortList(m.filter(c => c.year), 'year'), 'movie|');
@@ -1121,7 +1182,7 @@ function typeView(t){
   const sortSel = `<select class="f" id="sortSel" title="Sortera">${SORTS[t].map(([v, n]) => `<option value="${v}" ${v === by ? 'selected' : ''}>${n}</option>`).join('')}</select>`;
 
   if (t === 'live') {
-    let html = `<div class="pagehead"><h2>${title}</h2>${sortSel}</div>
+    let html = `<div class="pagehead"><h2>${title}</h2><button class="f ghost" type="button" data-openmulti="1">⊞ Flera samtidigt</button>${sortSel}</div>
       <div class="chips"><button class="f chip ${!st.cat ? 'on' : ''}" type="button" data-cat="">Alla</button>
       <button class="f chip ${st.cat === '__fav' ? 'on' : ''}" type="button" data-cat="__fav">★ Min lista</button>
       ${cats.map(([g, n]) => `<button class="f chip ${st.cat === g ? 'on' : ''}" type="button" data-cat="${esc(g)}">${esc(g)} <small>${n}</small></button>`).join('')}</div>`;
@@ -1173,11 +1234,38 @@ function searchView(){
     <input class="f searchbox" id="searchInput" type="text" placeholder="Sök filmer, serier och kanaler…" autocomplete="off"><div id="searchRes"></div>`;
 }
 let searchTimer = null;
+// Sök som tål stavfel: varje ord i sökningen ska finnas i titeln (eller nästan, max 1–2 fel)
+const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+function lev(a, b, max){
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i]; let best = i;
+    for (let j = 1; j <= b.length; j++) { cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); best = Math.min(best, cur[j]); }
+    if (best > max) return max + 1; prev = cur;
+  }
+  return prev[b.length];
+}
+function matchScore(c, q){
+  const name = c._n || (c._n = norm(c.name)), qn = norm(q); if (!qn) return 0;
+  if (name.includes(qn)) return name.startsWith(qn) ? 100 : 80;
+  const words = name.split(' '), cast = c._cast ? norm(c._cast) : '';
+  let score = 0;
+  for (const t of qn.split(' ')) {
+    if (words.some(w => w.startsWith(t))) { score += 20; continue; }
+    if (name.includes(t)) { score += 15; continue; }
+    if (cast && cast.includes(t)) { score += 12; continue; }
+    const max = t.length >= 7 ? 2 : t.length >= 4 ? 1 : 0;
+    if (max && words.some(w => lev(t, w.slice(0, t.length + max), max) <= max)) { score += 8; continue; }
+    return 0;
+  }
+  return score;
+}
 function renderSearch(){
   const q = vstate.search.q.trim().toLowerCase(), box = $('searchRes'); if (!box) return;
   if (q.length < 2) { box.innerHTML = '<div class="empty" style="padding-top:30px">Skriv minst två bokstäver.</div>'; return; }
-  const hit = c => c.name.toLowerCase().includes(q);
-  const res = t => sortList(byType[t].filter(hit), t === 'live' ? 'num' : 'pop');
+  const res = t => byType[t].map(c => [c, matchScore(c, q)]).filter(x => x[1] > 0)
+    .sort((a, b) => b[1] - a[1] || (b[0].rating || 0) - (a[0].rating || 0)).map(x => x[0]);
   const html = row('Filmer', res('movie')) + row('Serier', res('series')) + row('Kanaler', res('live'));
   box.innerHTML = html || '<div class="empty" style="padding-top:30px">Inga träffar.</div>';
 }
@@ -1232,6 +1320,14 @@ let lastCard = null;
 $('view').addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
   if (t.dataset.openPl) { renderPlRows(); openDialog('plDialog'); return; }
+  if (t.dataset.g) { guideClick(t); return; }
+  if (t.dataset.openmulti) { setView('multi'); return; }
+  if (t.dataset.madd) { openMultiPicker(); return; }
+  if (t.dataset.mclear) { multi = []; multiAudio = 0; renderView(); return; }
+  if (t.dataset.maud !== undefined) { multiAudio = +t.dataset.maud; document.querySelectorAll('.mslot video').forEach((v, k) => v.muted = k !== multiAudio); document.querySelectorAll('.mslot').forEach((m, k) => m.classList.toggle('aud', k === multiAudio)); document.querySelectorAll('[data-maud]').forEach((b, k) => b.textContent = k === multiAudio ? '🔊' : '🔈'); return; }
+  if (t.dataset.mdel !== undefined) { multi.splice(+t.dataset.mdel, 1); multiAudio = 0; renderView(); return; }
+  if (t.dataset.mbig !== undefined) { const c = multi[+t.dataset.mbig]; stopMulti(); queue = [...multi]; play(idxOf.get(c)); return; }
+  if (t.dataset.gcat !== undefined) { pushHist(); vstate.guide.cat = t.dataset.gcat; renderView(); setTimeout(() => document.querySelector('.chip.on')?.focus(), 0); return; }
   if (t.id === 'sportNotice') { lastCard = t; openUpcoming(); return; }
   if (t.dataset.sport !== undefined) { pushHist(); vstate.ppv.sport = t.dataset.sport; renderView(); setTimeout(() => document.querySelector('.chip.on')?.focus(), 0); return; }
   if (t.dataset.more !== undefined) {
@@ -1258,6 +1354,7 @@ $('view').addEventListener('click', e => {
     // Kö för kanalbyte: alla kort i samma rad/rutnät
     const box = t.closest('.rowscroll, .grid, .evlist');
     queue = box ? [...box.querySelectorAll('[data-i]')].map(b => channels[+b.dataset.i]) : [c];
+    if (t.classList.contains('evrow') && c.when && c.when > Date.now()) { openProgInfo(c, { title: c.title, start: c.when / 1000, stop: c.when / 1000 + 3 * 3600, desc: c.sport + ' · ' + c.group }); return; }
     if (TYPE(c) === 'live') play(+t.dataset.i); else openDetail(c);
   }
 });
@@ -1271,6 +1368,8 @@ $('view').addEventListener('input', e => {
 
 $('upList').addEventListener('click', e => {
   const b = e.target.closest('[data-i]'); if (!b) return;
+  const c = channels[+b.dataset.i];
+  if (c.when && c.when > Date.now()) { openProgInfo(c, { title: c.title, start: c.when / 1000, stop: c.when / 1000 + 3 * 3600, desc: c.sport + ' · ' + c.group }); return; }
   queue = [...$('upList').querySelectorAll('[data-i]')].map(x => channels[+x.dataset.i]);
   closeDialogs(); play(+b.dataset.i);
 });
@@ -1360,7 +1459,7 @@ function eventRow(c){
   return `<button class="f evrow" type="button" data-i="${idxOf.get(c)}">
     <span class="evtime">${c.when ? (isLiveNow(c) ? '<b class="livebadge">LIVE</b>' : timeLabel(c.when)) : '–'}</span>
     <span class="evicon">${c.sicon}</span>
-    <span class="evtxt"><b>${esc(c.title)}</b><small>${esc(c.sport)} · ${esc(c.group)}</small></span></button>`;
+    <span class="evtxt"><b>${esc(c.title)}</b><small>${esc(c.sport)} · ${esc(c.group)}</small></span>${c.when && reminders[remKey(c.url, c.when / 1000)] ? '<span class="evbell">🔔</span>' : ''}</button>`;
 }
 function eventsByDay(list){
   let html = '', last = '';
@@ -1378,7 +1477,7 @@ function ppvView(){
   const now = Date.now();
   const live = list.filter(isLiveNow), next = list.filter(c => c.when && c.when > now).sort((a, b) => a.when - b.when);
   const noTime = list.filter(c => !c.when || c.when < now - LIVE_WINDOW);
-  let html = `<div class="pagehead"><h2>PPV & sport</h2></div>
+  let html = `<div class="pagehead"><h2>PPV & sport</h2><button class="f ghost" type="button" data-openmulti="1">⊞ Se flera matcher samtidigt</button></div>
     <div class="chips"><button class="f chip ${!st.sport ? 'on' : ''}" type="button" data-sport="">Alla <small>${ppvList.length}</small></button>
     ${sports.map(([n, k]) => `<button class="f chip ${st.sport === n ? 'on' : ''}" type="button" data-sport="${esc(n)}">${icon(n)} ${esc(n)} <small>${k}</small></button>`).join('')}</div>`;
   if (live.length) html += `<div class="evlist"><h3>🔴 Pågår nu</h3>${live.map(eventRow).join('')}</div>`;
@@ -1417,6 +1516,221 @@ $('catList').addEventListener('click', e => {
   setTimeout(() => document.querySelector('.chip.on')?.focus(), 0);
 });
 
+
+// ====== TV-GUIDE I RUTNÄT (med catch-up) ======
+const PX_MIN = IS_TV ? 5 : 4, G_BACK = 3 * 60, G_FWD = 8 * 60; // 3 h bakåt, 8 h framåt
+let gStart = 0, guideObs = null; const fullEpg = {};
+const gx = t => Math.round((t - gStart) / 60 * PX_MIN); // t i sekunder
+function guideView(){
+  const st = vstate.guide, list = byType.live.filter(c => c.sid);
+  const cats = categories(list).sort((a, b) => a[0].localeCompare(b[0], 'sv'));
+  if (!st.cat && cats.length > 1) st.cat = (cats.find(([g]) => /sverige|sweden|\bse\b/i.test(g)) || cats[0])[0];
+  const items = sortList(list.filter(c => !st.cat || c.group === st.cat), 'num').slice(0, 120);
+  const now = Date.now() / 1000; gStart = Math.floor((now - G_BACK * 60) / 1800) * 1800;
+  let times = ''; for (let m = 0; m <= G_BACK + G_FWD; m += 30) { const t = gStart + m * 60; times += `<span style="left:${gx(t)}px">${hm(t)}</span>`; }
+  const width = gx(gStart + (G_BACK + G_FWD) * 60);
+  return `<div class="pagehead"><h2>TV-guide</h2></div>
+    <div class="chips">${cats.map(([g, n]) => `<button class="f chip ${st.cat === g ? 'on' : ''}" type="button" data-gcat="${esc(g)}">${esc(g)} <small>${n}</small></button>`).join('')}</div>
+    <div class="guidewrap" id="guideWrap">
+      <div class="ghead"><div class="gname">Kanal</div><div class="gtimes" style="width:${width}px">${times}</div></div>
+      ${items.map(c => `<div class="grow"><button class="f gname" type="button" data-i="${idxOf.get(c)}">${c.logo ? `<img src="${esc(c.logo)}" alt="" loading="lazy" onerror="this.remove()">` : ''}${esc(c.name)}</button>
+        <div class="gtrack" style="width:${width}px" data-sid="${c.sid}" data-i="${idxOf.get(c)}"><div class="gnow" style="left:${gx(now)}px"></div><span class="gempty">Hämtar…</span></div></div>`).join('')}
+    </div>
+    <div class="msg" style="padding:6px 4%">⟲ = går att se i efterhand (catch-up). Tryck på ett program som pågår för att titta.</div>`;
+}
+function initGuide(){
+  const wrap = $('guideWrap'); if (!wrap) return;
+  wrap.scrollLeft = Math.max(0, gx(Date.now() / 1000) - 120);
+  guideObs?.disconnect();
+  const q = []; let busy = 0;
+  const pump = () => { while (busy < 4 && q.length) { const tr = q.shift(); busy++; fillTrack(tr).finally(() => { busy--; pump(); }); } };
+  guideObs = new IntersectionObserver(es => { es.forEach(e => { if (e.isIntersecting) { guideObs.unobserve(e.target); q.push(e.target); } }); pump(); }, { root: wrap, rootMargin: '300px' });
+  wrap.querySelectorAll('.gtrack').forEach(t => guideObs.observe(t));
+}
+async function loadFullEpg(sid){
+  if (fullEpg[sid] && fullEpg[sid].at > Date.now() - 20 * 60e3) return fullEpg[sid].list;
+  let list = [];
+  try {
+    const r = await xtApi(curXt, `get_simple_data_table&stream_id=${sid}`);
+    list = (r.epg_listings || []).map(e => ({ title: b64(e.title), desc: b64(e.description || ''), start: +e.start_timestamp, stop: +e.stop_timestamp, startStr: e.start, arch: +e.has_archive === 1 }));
+  } catch(_) {}
+  if (!list.length) {
+    try { const r = await xtApi(curXt, `get_short_epg&stream_id=${sid}&limit=12`); list = (r.epg_listings || []).map(e => ({ title: b64(e.title), desc: b64(e.description || ''), start: +e.start_timestamp, stop: +e.stop_timestamp, startStr: e.start, arch: false })); } catch(_) {}
+  }
+  fullEpg[sid] = { at: Date.now(), list };
+  return list;
+}
+async function fillTrack(tr){
+  const sid = tr.dataset.sid, c = channels[+tr.dataset.i]; if (!c) return;
+  const list = await loadFullEpg(sid);
+  const now = Date.now() / 1000, end = gStart + (G_BACK + G_FWD) * 60;
+  const progs = list.filter(e => e.stop > gStart && e.start < end).sort((a, b) => a.start - b.start);
+  tr.querySelector('.gempty')?.remove();
+  if (!progs.length) { tr.insertAdjacentHTML('beforeend', '<span class="gempty">Ingen tablå</span>'); return; }
+  tr.insertAdjacentHTML('beforeend', progs.map((e, k) => {
+    const l = Math.max(0, gx(e.start)), w = Math.max(24, gx(Math.min(e.stop, end)) - l - 2);
+    const state = e.start <= now && e.stop > now ? 'now' : e.stop <= now ? 'past' : 'future';
+    const arch = state === 'past' && (e.arch || (c.arch && now - e.start < (c.archDays || 0) * 86400));
+    return `<button class="f gprog ${state} ${arch ? 'arch' : ''}" type="button" style="left:${l}px;width:${w}px" data-g="${sid}|${k}" title="${esc(e.title)}"><b>${esc(e.title)}</b><small>${hm(e.start)}–${hm(e.stop)}</small></button>`;
+  }).join(''));
+  tr._progs = progs;
+}
+// Catch-up-länk enligt Xtream: /timeshift/användare/lösen/minuter/ÅÅÅÅ-MM-DD:TT-MM/id.ts
+function catchupUrl(c, e){
+  const mins = Math.max(1, Math.round((e.stop - e.start) / 60));
+  let t = (e.startStr || '').replace(' ', ':').slice(0, 16);
+  if (!/^\d{4}-\d{2}-\d{2}:\d{2}:\d{2}$/.test(t)) { const d = new Date(e.start * 1000), z = n => String(n).padStart(2, '0'); t = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}:${z(d.getHours())}:${z(d.getMinutes())}`; }
+  t = t.replace(/:(\d{2}):(\d{2})$/, ':$1-$2');
+  return `${curXt.s}/timeshift/${encodeURIComponent(curXt.u)}/${encodeURIComponent(curXt.p)}/${mins}/${t}/${c.sid}.ts`;
+}
+function guideClick(b){
+  const [sid, k] = b.dataset.g.split('|'); const tr = b.closest('.gtrack'); const e = tr._progs?.[+k]; const c = channels[+tr.dataset.i];
+  if (!e || !c) return;
+  const now = Date.now() / 1000;
+  if (e.start <= now && e.stop > now) { lastCard = b; queue = sortList(byType.live.filter(x => x.group === c.group), 'num'); play(idxOf.get(c)); return; }
+  if (b.classList.contains('arch')) { lastCard = b; launch({ name: `${c.name} – ${e.title}`, url: catchupUrl(c, e), type: 'movie', logo: c.logo }); return; }
+  if (e.start > now) { openProgInfo(c, e); return; }
+  status('Det här programmet går inte att se i efterhand.'); setTimeout(() => status(''), 2500);
+}
+function openProgInfo(c, e){
+  $('piTitle').textContent = e.title; $('piMeta').textContent = `${c.name} · ${dayLabel(e.start * 1000)} ${hm(e.start)}–${hm(e.stop)}`;
+  $('piDesc').textContent = e.desc || '';
+  progInfoItem = { c, e }; updateReminderBtn(); openDialog('progDialog');
+}
+let progInfoItem = null;
+
+
+// ====== SKÅDESPELARE, TRAILER, LIKNANDE TITLAR OCH REKOMMENDATIONER ======
+let trailerId = '';
+function showCastAndTrailer(c, info){
+  const cast = info.cast || info.actors || '';
+  if (cast) { c._cast = cast; $('dCastLine').textContent = 'Medverkande: ' + cast.split(',').slice(0, 6).map(x => x.trim()).join(', '); }
+  trailerId = (info.youtube_trailer || '').trim();
+  $('dTrailer').classList.toggle('hidden', !trailerId);
+}
+$('dTrailer').onclick = () => { if (trailerId) location.href = /^https?:/.test(trailerId) ? trailerId : 'https://www.youtube.com/watch?v=' + encodeURIComponent(trailerId); };
+function similarTo(c, n = 20){
+  const g = new Set(c.genres || []); if (!g.size) return [];
+  return byType[TYPE(c)].filter(x => x !== c && (x.genres || []).some(y => g.has(y)))
+    .map(x => [x, (x.genres || []).filter(y => g.has(y)).length * 10 + (x.rating || 0) + (x.year && c.year ? Math.max(0, 5 - Math.abs(x.year - c.year) / 2) : 0)])
+    .sort((a, b) => b[1] - a[1]).slice(0, n).map(x => x[0]);
+}
+function renderSimilar(c){
+  const list = similarTo(c);
+  $('dSimilar').innerHTML = list.length ? `<h3 style="margin:18px 0 6px">Liknande titlar</h3><div class="rowscroll" style="padding:8px 0 14px">${list.map(card).join('')}</div>` : '';
+}
+$('dSimilar').addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (b) openDetail(channels[+b.dataset.i]); });
+// Rekommenderat: genrer du har tittat på, viktade efter hur nyligen, och titlar du inte har sett
+function recommendations(n = 30){
+  const w = {}, seen = new Set();
+  [...byType.movie, ...byType.series].forEach(c => {
+    const t = hist[c.url] || pos[c.url]?.at || done[c.url]; if (!t) return;
+    seen.add(c); const age = (Date.now() - t) / 864e5, weight = 1 / (1 + age / 14);
+    (c.genres || []).forEach(g => w[g] = (w[g] || 0) + weight);
+  });
+  if (!Object.keys(w).length) return [];
+  return [...byType.movie, ...byType.series].filter(c => !seen.has(c) && !done[c.url])
+    .map(c => [c, (c.genres || []).reduce((a, g) => a + (w[g] || 0), 0) * 3 + (c.rating || 0) / 2 + (c.added ? Math.max(0, 2 - (Date.now() / 1000 - c.added) / 86400 / 60) : 0)])
+    .filter(x => x[1] > 1).sort((a, b) => b[1] - a[1]).slice(0, n).map(x => x[0]);
+}
+
+
+// ====== PÅMINNELSER ======
+// Notis 5 minuter innan ett program/evenemang börjar. I appen via Androids notiser, annars när appen är öppen.
+const Notif = (() => { try { return NATIVE ? Capacitor.Plugins?.LocalNotifications || null : null; } catch(_) { return null; } })();
+let reminders = store.get('iptv_rem', {});
+const remKey = (url, start) => url + '@' + Math.round(start);
+function cleanReminders(){ const now = Date.now(); for (const [k, r] of Object.entries(reminders)) if (r.at < now - 3600e3) delete reminders[k]; store.set('iptv_rem', reminders); }
+function updateReminderBtn(){
+  if (!progInfoItem) return;
+  const { c, e } = progInfoItem, on = !!reminders[remKey(c.url, e.start)];
+  $('piRemind').textContent = on ? '🔕 Ta bort påminnelsen' : '🔔 Påminn mig 5 min innan';
+  $('piRemind').classList.toggle('hidden', e.start * 1000 < Date.now());
+}
+async function toggleReminder(c, e){
+  const key = remKey(c.url, e.start), id = Math.abs([...key].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) | 0, 7)) % 2000000000;
+  if (reminders[key]) {
+    try { await Notif?.cancel({ notifications: [{ id }] }); } catch(_) {}
+    delete reminders[key]; store.set('iptv_rem', reminders); status('Påminnelsen är borttagen');
+  } else {
+    const at = Math.max(Date.now() + 5000, e.start * 1000 - 5 * 60e3);
+    if (Notif) {
+      try {
+        const p = await Notif.requestPermissions();
+        if (p?.display && p.display !== 'granted') { status('Tillåt notiser för appen i telefonens inställningar.', true); return; }
+        await Notif.schedule({ notifications: [{ id, title: '🔔 Börjar snart: ' + e.title, body: `${c.name} · ${hm(e.start)}`, schedule: { at: new Date(at), allowWhileIdle: true }, extra: { url: c.url } }] });
+      } catch (err) { reportError('reminder', err?.message || String(err)); status('Kunde inte skapa påminnelsen.', true); return; }
+    }
+    reminders[key] = { at, title: e.title, url: c.url, id }; store.set('iptv_rem', reminders);
+    status('🔔 Du påminns ' + hm(at / 1000) + (Notif ? '' : ' (när appen är öppen)'));
+  }
+  setTimeout(() => status(''), 3000);
+  updateReminderBtn(); if (view === 'ppv') { const y = $('main').scrollTop; renderView(); $('main').scrollTop = y; }
+}
+$('piRemind').onclick = () => progInfoItem && toggleReminder(progInfoItem.c, progInfoItem.e);
+$('piPlay').onclick = () => { if (!progInfoItem) return; const c = progInfoItem.c; closeDialogs(); play(idxOf.get(c)); };
+// Tryck på notisen: öppna kanalen
+try { Notif?.addListener('localNotificationActionPerformed', ev => {
+  const url = ev?.notification?.extra?.url; const i = channels.findIndex(c => c.url === url);
+  if (i > -1) setTimeout(() => play(i), 500);
+}); } catch(_) {}
+// Utan Android-notiser: visa i appen när det är dags
+setInterval(() => {
+  if (Notif) return; const now = Date.now();
+  for (const [k, r] of Object.entries(reminders)) if (!r.shown && r.at <= now && r.at > now - 10 * 60e3) {
+    r.shown = true; store.set('iptv_rem', reminders);
+    status('🔔 Börjar snart: ' + r.title); setTimeout(() => status(''), 8000);
+  }
+}, 20000);
+cleanReminders();
+
+// ====== FLERA SAMTIDIGT (multivy) ======
+let multi = [], multiAudio = 0;
+function multiView(){
+  const n = Math.max(2, multi.length + (multi.length < 4 ? 1 : 0));
+  const slots = [...Array(Math.min(4, n))].map((_, k) => multi[k]);
+  return `<div class="pagehead"><h2>⊞ Flera samtidigt</h2><button class="f ghost" type="button" data-mclear="1">Töm</button></div>
+    <div class="msg" style="padding:0 4% 8px">Upp till 4 kanaler. Ljudet kommer från rutan med 🔊 – tryck på en ruta för att byta ljud.</div>
+    <div class="mgrid n${slots.length}">${slots.map((c, k) => c ? `
+      <div class="mslot ${k === multiAudio ? 'aud' : ''}"><video id="mv${k}" playsinline muted autoplay></video>
+        <div class="mbar"><button class="f iconbtn" type="button" data-maud="${k}">${k === multiAudio ? '🔊' : '🔈'}</button><span>${esc(c.name)}</span>
+        <button class="f iconbtn" type="button" data-mbig="${k}">⛶</button><button class="f iconbtn" type="button" data-mdel="${k}">✕</button></div></div>`
+      : `<button class="f mslot madd" type="button" data-madd="1">＋ Lägg till kanal</button>`).join('')}</div>`;
+}
+const multiPlayers = [];
+function startMulti(){
+  multiPlayers.forEach(p => { try { p.destroy(); } catch(_) {} }); multiPlayers.length = 0;
+  multi.forEach((c, k) => {
+    const v = $('mv' + k); if (!v) return;
+    v.muted = k !== multiAudio;
+    const u = c.url.toLowerCase().split('?')[0];
+    if ((NATIVE || v.canPlayType('application/vnd.apple.mpegurl')) && !c._mfb) {
+      v.src = c.url; v.play().catch(() => {});
+      v.onerror = () => { c._mfb = true; startMulti(); };
+    } else if (/\.ts$/.test(u) && window.mpegts?.isSupported()) {
+      const p = mpegts.createPlayer({ type: 'mpegts', isLive: true, url: c.url }); p.attachMediaElement(v); p.load(); v.play().catch(() => {}); multiPlayers.push(p);
+    } else if (window.Hls?.isSupported()) {
+      const h = new Hls(); h.loadSource(c.url); h.attachMedia(v); h.on(Hls.Events.MANIFEST_PARSED, () => v.play().catch(() => {})); multiPlayers.push(h);
+    } else { v.src = c.url; v.play().catch(() => {}); }
+  });
+}
+function stopMulti(){ multiPlayers.forEach(p => { try { p.destroy(); } catch(_) {} }); multiPlayers.length = 0; document.querySelectorAll('.mslot video').forEach(v => { v.removeAttribute('src'); v.load(); }); }
+function openMultiPicker(){
+  $('mpSearch').value = ''; renderMultiPicker(); openDialog('multiPick');
+}
+function renderMultiPicker(){
+  const q = $('mpSearch').value.trim();
+  let list = q.length >= 2 ? byType.live.map(c => [c, matchScore(c, q)]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]).map(x => x[0])
+    : [...upcoming(1).filter(isLiveNow), ...sortList(byType.live.filter(c => hist[c.url]), 'recent'), ...sortList(byType.live, 'num')];
+  list = [...new Set(list)].filter(c => !multi.includes(c)).slice(0, 80);
+  $('mpList').innerHTML = list.map(c => `<button class="f" type="button" data-mp="${idxOf.get(c)}">${c.sicon || '📺'} ${esc(c.title || c.name)}</button>`).join('') || '<div class="msg">Inga kanaler hittades.</div>';
+}
+$('mpSearch').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(renderMultiPicker, 200); });
+$('mpList').addEventListener('click', e => {
+  const b = e.target.closest('[data-mp]'); if (!b) return;
+  multi.push(channels[+b.dataset.mp]); closeDialogs(); renderView();
+});
+
 // ====== DETALJSIDA ======
 let serData = null, serItem = null, detailItem = null;
 function openDetail(c){
@@ -1424,7 +1738,8 @@ function openDetail(c){
   const bg = $('dBg'); bg.style.backgroundImage = c.logo ? `url('${cssUrl(c.logo)}')` : ''; $('dHero').classList.remove('backdrop');
   $('dPoster').src = c.logo || ''; $('dPoster').classList.toggle('hidden', !c.logo);
   $('dTitle').textContent = c.name; $('dMeta').innerHTML = metaLine(c);
-  $('dPlot').textContent = ''; msg($('serMsg'), '');
+  $('dPlot').textContent = ''; msg($('serMsg'), ''); $('dCastLine').textContent = ''; $('dTrailer').classList.add('hidden');
+  renderSimilar(c);
   updateFavBtns();
   const isSeries = !!(c.seriesId && curXt);
   $('dSeries').classList.toggle('hidden', !isSeries);
@@ -1446,6 +1761,7 @@ async function loadVodInfo(c){
     $('dPlot').textContent = info.plot || info.description || '';
     const extra = [info.genre, info.duration, info.director && 'Regi: ' + info.director].filter(Boolean).map(esc).join(' · ');
     if (extra) $('dMeta').innerHTML = metaLine(c) + '<br>' + extra;
+    showCastAndTrailer(c, info);
     if (info.genre && !c.genre) { c.genre = info.genre; assignGenres(c); }
     setBackdrop(info);
   } catch(_) {}
@@ -1462,6 +1778,7 @@ async function loadSeries(c){
     const info = serData.info || {};
     $('dPlot').textContent = info.plot || '';
     if (info.genre) $('dMeta').innerHTML = metaLine(c) + '<br>' + esc(info.genre);
+    showCastAndTrailer(c, info);
     setBackdrop(info);
     $('serSeason').innerHTML = seasons.map(n => `<option value="${n}">Säsong ${n} (${eps[n].length} avsnitt)</option>`).join('');
     // Fortsätt där du var: första osedda avsnittet
@@ -2061,6 +2378,7 @@ function chooseDevice(cb){
   let html = ids.map(id => `<button class="f" type="button" data-dev="${id}">${devices[id].tv ? '📺' : '💻'} ${esc(devices[id].name)} <small>(IPTV-appen)</small></button>`).join('');
   if (castReady) html += `<button class="f" type="button" data-dev="cc">📡 Chromecast</button>`;
   if (ExternalPlayer) html += `<button class="f" type="button" data-dev="ext">📡 Chromecast / smart-TV via annan app<br><small>Välj t.ex. VLC eller Web Video Caster och tryck på cast-ikonen där</small></button>`;
+  if (ids.length === 1 && !castReady && !ExternalPlayer) return cb(ids[0]); // bara en TV: starta direkt
   if (!html) html = '<div class="msg">Inget att casta till hittades.</div>';
   $('castList').innerHTML = html;
   $('castList').onclick = e => { const b = e.target.closest('[data-dev]'); if (b) { closeDialogs(); cb(b.dataset.dev); } };

@@ -14,6 +14,7 @@
     "@capacitor/app": "^7.1.2",
     "@capacitor/cli": "^7.6.10",
     "@capacitor/core": "^7.6.10",
+    "@capacitor/local-notifications": "^7.0.7",
     "@supabase/supabase-js": "^2.119.0",
     "hls.js": "^1.7.4",
     "mpegts.js": "^1.8.2"
