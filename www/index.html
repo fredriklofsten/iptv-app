@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IPTV-spelare</title>
+<script src="vendor/supabase.js"></script>
+<script src="vendor/hls.min.js"></script>
+<script src="vendor/mpegts.js"></script>
+<style>
+  :root{--bg:#0f1115;--panel:#171a21;--line:#262b36;--text:#e8eaf0;--mute:#8b93a7;--acc:#4f8cff;--accbg:#1c2a45;--focus:#ffc94d}
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden}
+  body.tv{font-size:22px}
+  .hidden{display:none!important}
+  input[type=text],input[type=email],input[type=password],input[type=url],select{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:.6em .7em;font-size:inherit;width:100%}
+  button,.filebtn{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:.6em 1em;font-size:inherit;cursor:pointer;white-space:nowrap;font-family:inherit}
+  button.ghost,.filebtn{background:var(--panel);border:1px solid var(--line);color:var(--text)}
+  .filebtn input{display:none}
+  .f:focus,.f.kfocus{outline:3px solid var(--focus);outline-offset:2px}
+  #list li.f:focus{outline-offset:-3px}
+
+  /* Inloggning */
+  .center{height:100%;display:flex;align-items:center;justify-content:center;padding:20px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px;width:100%;max-width:380px;display:flex;flex-direction:column;gap:12px}
+  body.tv .card{max-width:620px}
+  .card h2{margin:0 0 4px}
+  .row{display:flex;gap:8px}.row>*{flex:1}
+  .msg{font-size:.9em;color:var(--mute);min-height:1.2em}
+  .msg.err{color:#ff7a7a}
+  .bigcode{font-size:3.2em;letter-spacing:.2em;font-weight:700;text-align:center;font-family:ui-monospace,Menlo,monospace;color:var(--focus)}
+  .link{background:none;border:0;color:var(--acc);padding:4px;text-decoration:underline}
+
+  /* App */
+  #app{height:100%;display:flex;flex-direction:column}
+  header{display:flex;gap:8px;padding:10px;border-bottom:1px solid var(--line);align-items:center}
+  header h1{font-size:1.05em;margin:0 6px 0 0;white-space:nowrap}
+  header select{width:auto;flex:1;min-width:0;max-width:340px}
+  header .sp{flex:1}
+  main{flex:1;display:flex;min-height:0}
+  aside{width:340px;border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  body.tv aside{width:520px}
+  .filters{display:flex;gap:6px;padding:10px;border-bottom:1px solid var(--line)}
+  .filters input{flex:1;min-width:0}
+  .filters select{width:auto;max-width:45%}
+  #list{list-style:none;margin:0;padding:0;overflow-y:auto;flex:1}
+  #list li{display:flex;gap:10px;align-items:center;padding:.5em .8em;cursor:pointer;border-bottom:1px solid #1d212a}
+  #list li:hover{background:#1b1f28}
+  #list li.active{background:var(--accbg)}
+  #list img,#list .ph{width:2.6em;height:1.8em;object-fit:contain;flex-shrink:0;background:#0b0d11;border-radius:4px}
+  #list .ph{display:flex;align-items:center;justify-content:center;font-size:.7em;color:var(--mute)}
+  #list .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #list .grp{font-size:.8em;color:var(--mute)}
+  #list .fav{margin-left:auto;color:var(--mute);font-size:1.2em;padding:0 4px}
+  #list .fav.on{color:var(--focus)}
+  .empty{padding:24px;color:var(--mute);text-align:center;cursor:default!important}
+  .count{padding:6px 12px;font-size:.8em;color:var(--mute);border-top:1px solid var(--line)}
+  section{flex:1;display:flex;flex-direction:column;min-width:0;padding:12px;gap:10px}
+  video{width:100%;flex:1;min-height:0;background:#000;border-radius:10px}
+  .nowbar{display:flex;gap:8px;align-items:center}
+  #now{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #status{font-size:.85em;color:var(--mute);min-height:1.2em}
+  #status.err{color:#ff7a7a}
+  .tvhint{font-size:.75em;color:var(--mute)}
+
+  /* Dialoger */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
+  .overlay .card{max-height:90vh;overflow:auto}
+  .plrow{display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--line);padding:6px 0}
+  .plrow span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .plrow small{color:var(--mute);margin-left:6px}
+  .tabs{display:flex;gap:6px}
+  .tab{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--mute)}
+  .tab.on{background:var(--accbg);color:var(--text);border-color:var(--acc)}
+  .pane{display:flex;flex-direction:column;gap:10px}
+  .freegrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .chk{display:flex;gap:8px;align-items:center;color:var(--mute)}
+
+  @media (max-width:760px){
+    main{flex-direction:column}
+    section{order:-1;flex:none;padding:8px}
+    video{flex:none;aspect-ratio:16/9;height:auto}
+    aside{width:auto!important;border-right:0;border-top:1px solid var(--line);flex:1}
+    header h1{display:none}
+  }
+</style>
+</head>
+<body>
+
+<!-- Inloggning med e-post -->
+<div id="loginView" class="center hidden">
+  <form class="card" id="loginForm">
+    <h2>📺 IPTV-spelare</h2>
+    <div class="msg">Logga in så delar mobil och TV samma profil.</div>
+    <input class="f" id="email" type="email" placeholder="E-post" autocomplete="email" required>
+    <input class="f" id="password" type="password" placeholder="Lösenord (minst 6 tecken)" autocomplete="current-password" required minlength="6">
+    <div class="row">
+      <button class="f" type="submit">Logga in</button>
+      <button class="f ghost" type="button" id="signupBtn">Skapa konto</button>
+    </div>
+    <div class="msg" id="loginMsg"></div>
+    <button class="f link" type="button" id="toCodeBtn">Logga in med kod (för TV)</button>
+  </form>
+</div>
+
+<!-- Inloggning med kod (TV) -->
+<div id="codeView" class="center hidden">
+  <div class="card" style="text-align:center">
+    <h2>Logga in på TV:n</h2>
+    <div class="msg">Öppna appen i mobilen, välj <b>Koppla TV</b> och skriv in koden:</div>
+    <div class="bigcode" id="tvCode">······</div>
+    <div class="msg" id="codeMsg">Väntar på godkännande…</div>
+    <button class="f link" type="button" id="toEmailBtn">Logga in med e-post i stället</button>
+  </div>
+</div>
+
+<!-- Själva appen -->
+<div id="app" class="hidden">
+  <header>
+    <h1>📺 IPTV</h1>
+    <select class="f" id="plSelect" title="Spellista"></select>
+    <button class="f ghost" id="plManageBtn">Spellistor</button>
+    <span class="sp"></span>
+    <button class="f ghost" id="pairBtn">Koppla TV</button>
+    <button class="f ghost" id="logoutBtn">Logga ut</button>
+  </header>
+  <main>
+    <aside>
+      <div class="filters">
+        <input class="f" id="search" type="text" placeholder="Sök kanal…">
+        <select class="f" id="group"><option value="">Alla grupper</option></select>
+      </div>
+      <ul id="list"></ul>
+      <div class="count" id="count"></div>
+    </aside>
+    <section>
+      <video id="video" controls playsinline></video>
+      <div class="nowbar">
+        <div id="now">Ingen kanal vald</div>
+        <button class="f ghost" id="prevBtn" title="Föregående kanal">◀</button>
+        <button class="f ghost" id="nextBtn" title="Nästa kanal">▶</button>
+        <button class="f ghost" id="fullBtn" title="Helskärm">⛶</button>
+      </div>
+      <div id="status"></div>
+      <div class="tvhint" id="tvHint"></div>
+    </section>
+  </main>
+</div>
+
+<!-- Dialog: spellistor -->
+<div id="plDialog" class="overlay hidden">
+  <form class="card" id="plForm">
+    <h2>Spellistor</h2>
+    <div id="plRows"></div>
+    <b style="margin-top:6px">Lägg till ny</b>
+    <div class="tabs">
+      <button class="f tab on" type="button" data-tab="m3u">M3U</button>
+      <button class="f tab" type="button" data-tab="xt">Xtream API</button>
+      <button class="f tab" type="button" data-tab="free">Gratis</button>
+    </div>
+    <div class="pane" data-pane="m3u">
+      <input class="f" id="plName" type="text" placeholder="Namn, t.ex. Min leverantör">
+      <input class="f" id="plUrl" type="url" placeholder="Länk till M3U-spellista">
+      <label class="filebtn f" tabindex="0">…eller välj M3U-fil<input id="plFile" type="file" accept=".m3u,.m3u8,.txt"></label>
+    </div>
+    <div class="pane hidden" data-pane="xt">
+      <div class="msg">Uppgifterna får du av din IPTV-leverantör (Xtream Codes).</div>
+      <input class="f" id="xtName" type="text" placeholder="Namn, t.ex. Min leverantör">
+      <input class="f" id="xtServer" type="url" placeholder="Server, t.ex. http://exempel.com:8080">
+      <input class="f" id="xtUser" type="text" placeholder="Användarnamn" autocomplete="off" autocapitalize="off">
+      <input class="f" id="xtPass" type="password" placeholder="Lösenord" autocomplete="off">
+      <label class="chk"><input class="f" id="xtVod" type="checkbox" checked> Ta med filmer (VOD)</label>
+      <button class="f ghost" type="button" id="xtTest">Testa anslutningen</button>
+    </div>
+    <div class="pane hidden" data-pane="free">
+      <div class="msg">Lagliga gratiskanaler från den öppna listan iptv-org. Tryck på en för att lägga till den.</div>
+      <div class="freegrid">
+        <button class="f ghost" type="button" data-free="countries/se">🇸🇪 Sverige</button>
+        <button class="f ghost" type="button" data-free="regions/nord">Norden</button>
+        <button class="f ghost" type="button" data-free="categories/news">📰 Nyheter</button>
+        <button class="f ghost" type="button" data-free="categories/sports">⚽ Sport</button>
+        <button class="f ghost" type="button" data-free="categories/music">🎵 Musik</button>
+        <button class="f ghost" type="button" data-free="categories/kids">🧸 Barn</button>
+        <button class="f ghost" type="button" data-free="categories/movies">🎬 Film</button>
+        <button class="f ghost" type="button" data-free="index">🌍 Alla (stor)</button>
+      </div>
+    </div>
+    <div class="msg" id="plMsg"></div>
+    <div class="row">
+      <button class="f" type="submit" id="plSave">Spara</button>
+      <button class="f ghost" type="button" data-close>Stäng</button>
+    </div>
+  </form>
+</div>
+
+<!-- Dialog: koppla TV -->
+<div id="pairDialog" class="overlay hidden">
+  <form class="card" id="pairForm">
+    <h2>Koppla en TV</h2>
+    <div class="msg">Välj <b>Logga in med kod</b> på TV:n och skriv in koden som visas där.</div>
+    <input class="f" id="pairCode" type="text" placeholder="ABC123" maxlength="7" autocapitalize="characters" autocomplete="off" style="font-size:1.6em;text-align:center;letter-spacing:.2em" required>
+    <div class="msg" id="pairMsg"></div>
+    <div class="row">
+      <button class="f" type="submit">Koppla</button>
+      <button class="f ghost" type="button" data-close>Stäng</button>
+    </div>
+  </form>
+</div>
+
+<script>
+// ====== INSTÄLLNINGAR ======
+const SUPABASE_URL = 'https://puqzolsfzkbezhxwtkbh.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_bLjqZNa0SrDUag-q3j7lYg_GW7uTEPB';
+// ===========================
+
+const $ = id => document.getElementById(id);
+if (!window.supabase) {
+  document.body.innerHTML = '<div class="center"><div class="card"><h2>Kunde inte starta</h2><div class="msg err">Appen behöver internet. Kontrollera anslutningen och ladda om sidan.</div></div></div>';
+  throw new Error('supabase-js laddades inte');
+}
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const IS_TV = /Web0S|webOS|Tizen|SMART-TV|SmartTV|Android TV|AFT[A-Z]|BRAVIA|GoogleTV|CrKey/i.test(navigator.userAgent) || location.hash === '#tv';
+if (IS_TV) document.body.classList.add('tv');
+
+let user = null, playlists = [], channels = [], shown = [], current = -1;
+let favs = new Map(), settings = {}, hls = null, ts = null, rtChannel = null, codeTimer = null;
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function msg(el, text, err){ el.textContent = text || ''; el.classList.toggle('err', !!err); }
+function show(view){
+  ['loginView','codeView','app'].forEach(v => $(v).classList.toggle('hidden', v !== view));
+  if (view !== 'codeView') stopCodeLogin();
+  setTimeout(() => { const f = $(view).querySelector('.f'); f && f.focus(); }, 50);
+}
+
+// ====== INLOGGNING ======
+$('loginForm').onsubmit = async e => {
+  e.preventDefault();
+  msg($('loginMsg'), 'Loggar in…');
+  const { error } = await sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('password').value });
+  if (error) msg($('loginMsg'), error.message === 'Invalid login credentials' ? 'Fel e-post eller lösenord.' :
+    /confirm/i.test(error.message) ? 'Bekräfta först kontot via länken i mejlet.' : error.message, true);
+};
+$('signupBtn').onclick = async () => {
+  const email = $('email').value.trim(), password = $('password').value;
+  if (!email || password.length < 6) return msg($('loginMsg'), 'Fyll i e-post och ett lösenord på minst 6 tecken.', true);
+  msg($('loginMsg'), 'Skapar konto…');
+  const { data, error } = await sb.auth.signUp({ email, password });
+  if (error) return msg($('loginMsg'), error.message, true);
+  if (!data.session) msg($('loginMsg'), 'Klart! Klicka på länken i mejlet vi skickade och logga sedan in här.');
+};
+$('toCodeBtn').onclick = () => { show('codeView'); startCodeLogin(); };
+$('toEmailBtn').onclick = () => show('loginView');
+$('logoutBtn').onclick = async () => { stop(); await sb.auth.signOut(); };
+
+// TV-inloggning med kod
+function randomSecret(){
+  const a = new Uint8Array(24); crypto.getRandomValues(a);
+  return Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
+}
+function stopCodeLogin(){ clearInterval(codeTimer); codeTimer = null; }
+async function startCodeLogin(){
+  stopCodeLogin();
+  const secret = randomSecret();
+  msg($('codeMsg'), 'Hämtar kod…');
+  const { data: code, error } = await sb.rpc('create_tv_code', { p_secret: secret });
+  if (error) { msg($('codeMsg'), 'Kunde inte hämta kod: ' + error.message, true); return; }
+  $('tvCode').textContent = code;
+  msg($('codeMsg'), 'Väntar på godkännande…');
+  const started = Date.now();
+  codeTimer = setInterval(async () => {
+    if (Date.now() - started > 9.5 * 60 * 1000) return startCodeLogin(); // ny kod innan den gamla går ut
+    const { data: tokenHash } = await sb.rpc('poll_tv_code', { p_code: code, p_secret: secret });
+    if (!tokenHash) return;
+    stopCodeLogin();
+    msg($('codeMsg'), 'Godkänd! Loggar in…');
+    let { error } = await sb.auth.verifyOtp({ token_hash: tokenHash, type: 'magiclink' });
+    if (error) ({ error } = await sb.auth.verifyOtp({ token_hash: tokenHash, type: 'email' }));
+    if (error) { msg($('codeMsg'), 'Inloggningen misslyckades, försök igen.', true); setTimeout(startCodeLogin, 3000); }
+  }, 3000);
+}
+
+// Mobil: godkänn en TV
+$('pairBtn').onclick = () => openDialog('pairDialog');
+$('pairForm').onsubmit = async e => {
+  e.preventDefault();
+  msg($('pairMsg'), 'Kopplar…');
+  const { data, error } = await sb.functions.invoke('approve-tv', { body: { code: $('pairCode').value } });
+  if (error) {
+    let text = 'Något gick fel.';
+    try { text = (await error.context.json()).error || text; } catch(_) {}
+    return msg($('pairMsg'), text, true);
+  }
+  msg($('pairMsg'), '✅ TV:n är kopplad och loggas in om några sekunder.');
+  $('pairCode').value = '';
+};
+
+let authReady = false;
+sb.auth.onAuthStateChange((event, session) => {
+  const u = session?.user || null;
+  if (authReady && u?.id === user?.id) return;
+  authReady = true;
+  user = u;
+  if (user) { show('app'); loadAll(); subscribe(); }
+  else { unsubscribe(); channels = []; playlists = []; favs.clear(); IS_TV ? (show('codeView'), startCodeLogin()) : show('loginView'); }
+});
+
+// ====== NÄTVERK ======
+const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());
+// I Android-appen hämtas spellistor via Androids eget nätverk, så servrar kan inte blockera dem.
+async function httpText(url){
+  if (NATIVE) {
+    const r = await Capacitor.Plugins.CapacitorHttp.get({ url, responseType: 'text' });
+    if (r.status >= 400) throw new Error('HTTP ' + r.status);
+    return typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+  }
+  const r = await fetch(url); if (!r.ok) throw new Error('HTTP ' + r.status); return r.text();
+}
+
+// ====== DATA ======
+async function loadAll(){
+  const [pl, fv, st] = await Promise.all([
+    sb.from('playlists').select('id,name,url,content').order('created_at'),
+    sb.from('favorites').select('*'),
+    sb.from('user_settings').select('*').maybeSingle()
+  ]);
+  playlists = pl.data || [];
+  favs = new Map((fv.data || []).map(f => [f.channel_url, f]));
+  settings = st.data || {};
+  renderPlSelect();
+  const id = playlists.some(p => p.id === settings.last_playlist_id) ? settings.last_playlist_id : playlists[0]?.id;
+  if (id) { $('plSelect').value = id; await loadPlaylist(id, true); }
+  else { channels = []; setGroups(); render(); status('Lägg till en spellista via knappen "Spellistor".'); }
+}
+
+function renderPlSelect(){
+  $('plSelect').innerHTML = playlists.length
+    ? playlists.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')
+    : '<option value="">Inga spellistor</option>';
+}
+
+async function loadPlaylist(id, resume){
+  const p = playlists.find(x => x.id === id); if (!p) return;
+  status('Läser in ' + p.name + '…');
+  const xt = parseXtream(p.url);
+  if (xt) {
+    try { channels = await loadXtream(xt); }
+    catch (e) { status('Kunde inte hämta kanaler från leverantören (' + e.message + '). Kontrollera server, användarnamn och lösenord.', true); channels = []; setGroups(); render(); return; }
+  } else {
+    let text = p.content;
+    if (!text && p.url) {
+      try { text = await httpText(p.url); }
+      catch (e) { status('Kunde inte hämta spellistan (' + e.message + '). Servern kan blockera webbläsare – ladda upp filen i stället.', true); channels = []; render(); return; }
+    }
+    channels = parseM3U(text || '');
+  }
+  setGroups(); render();
+  status(channels.length + ' kanaler.');
+  saveSettings({ last_playlist_id: id });
+  if (resume && settings.last_channel_url) {
+    const i = channels.findIndex(c => c.url === settings.last_channel_url);
+    if (i > -1) { current = i; $('now').textContent = '▶ Fortsätt: ' + channels[i].name; render(); }
+  }
+}
+$('plSelect').onchange = () => { stop(); current = -1; loadPlaylist($('plSelect').value); };
+
+let saveTimer = null, pending = {};
+function saveSettings(patch){
+  Object.assign(settings, patch); Object.assign(pending, patch);
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    const p = pending; pending = {};
+    await sb.from('user_settings').upsert({ user_id: user.id, ...p, updated_at: new Date().toISOString() });
+  }, 800);
+}
+
+async function toggleFav(c){
+  if (favs.has(c.url)) {
+    favs.delete(c.url); render();
+    await sb.from('favorites').delete().eq('channel_url', c.url);
+  } else {
+    const row = { channel_url: c.url, name: c.name, logo: c.logo, group_title: c.group };
+    favs.set(c.url, row); render();
+    await sb.from('favorites').upsert(row);
+  }
+}
+
+// Realtid: ändringar från andra enheter syns direkt
+function subscribe(){
+  unsubscribe();
+  rtChannel = sb.channel('sync-' + user.id)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'favorites', filter: 'user_id=eq.' + user.id }, async () => {
+      const { data } = await sb.from('favorites').select('*');
+      favs = new Map((data || []).map(f => [f.channel_url, f])); render();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'playlists', filter: 'user_id=eq.' + user.id }, async () => {
+      const sel = $('plSelect').value;
+      const { data } = await sb.from('playlists').select('id,name,url,content').order('created_at');
+      playlists = data || []; renderPlSelect(); renderPlRows();
+      if (playlists.some(p => p.id === sel)) $('plSelect').value = sel;
+      else if (playlists[0]) { $('plSelect').value = playlists[0].id; loadPlaylist(playlists[0].id); }
+      else { channels = []; render(); }
+    })
+    .subscribe();
+}
+function unsubscribe(){ if (rtChannel) { sb.removeChannel(rtChannel); rtChannel = null; } }
+
+// ====== SPELLISTOR ======
+$('plManageBtn').onclick = () => { renderPlRows(); openDialog('plDialog'); };
+function renderPlRows(){
+  const kind = p => parseXtream(p.url) ? 'Xtream' : /iptv-org\.github\.io/.test(p.url || '') ? 'Gratis' : p.url ? 'Länk' : 'Fil';
+  $('plRows').innerHTML = playlists.length ? playlists.map(p => `
+    <div class="plrow"><span>${esc(p.name)}<small>${kind(p)}</small></span><button class="f ghost" type="button" data-del="${p.id}">Ta bort</button></div>`).join('')
+    : '<div class="msg">Inga spellistor ännu.</div>';
+}
+$('plRows').onclick = async e => {
+  const id = e.target.dataset?.del; if (!id) return;
+  if (e.target.dataset.sure !== '1') { e.target.dataset.sure = '1'; e.target.textContent = 'Säker?'; return; }
+  await sb.from('playlists').delete().eq('id', id);
+  playlists = playlists.filter(p => p.id !== id); renderPlRows(); renderPlSelect();
+  if ($('plSelect').value) loadPlaylist($('plSelect').value); else { channels = []; render(); }
+};
+let fileText = null;
+$('plFile').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  if (f.size > 8 * 1024 * 1024) { msg($('plMsg'), 'Filen är för stor (max 8 MB). Använd en länk i stället.', true); return; }
+  const rd = new FileReader();
+  rd.onload = () => { fileText = rd.result; if (!$('plName').value) $('plName').value = f.name.replace(/\.\w+$/, '');
+    msg($('plMsg'), `Fil vald: ${parseM3U(fileText).length} kanaler.`); };
+  rd.readAsText(f);
+};
+// Flikar i dialogen
+let plTab = 'm3u';
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  plTab = t.dataset.tab;
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === t));
+  document.querySelectorAll('.pane').forEach(x => x.classList.toggle('hidden', x.dataset.pane !== plTab));
+  $('plSave').classList.toggle('hidden', plTab === 'free');
+  msg($('plMsg'), '');
+});
+
+async function addPlaylist(name, url, content){
+  msg($('plMsg'), 'Sparar…');
+  const { data, error } = await sb.from('playlists').insert({ name, url, content }).select('id,name,url,content').single();
+  if (error) { msg($('plMsg'), error.message, true); return false; }
+  playlists.push(data); renderPlSelect(); renderPlRows();
+  $('plSelect').value = data.id; stop(); current = -1; loadPlaylist(data.id);
+  msg($('plMsg'), '✅ Sparad – syns nu på alla dina enheter.');
+  return true;
+}
+
+$('plForm').onsubmit = async e => {
+  e.preventDefault();
+  if (plTab === 'xt') {
+    const x = xtFromForm(); if (!x) return;
+    if (await addPlaylist($('xtName').value.trim() || hostOf(x.s), 'xtream:' + JSON.stringify(x), null)) {
+      $('xtName').value = $('xtServer').value = $('xtUser').value = $('xtPass').value = '';
+    }
+    return;
+  }
+  const url = $('plUrl').value.trim();
+  if (!url && !fileText) return msg($('plMsg'), 'Ange en länk eller välj en fil.', true);
+  const name = $('plName').value.trim() || (url ? hostOf(url) : 'Min spellista');
+  if (await addPlaylist(name, url || null, url ? null : fileText)) {
+    $('plName').value = $('plUrl').value = ''; $('plFile').value = ''; fileText = null;
+  }
+};
+
+// Gratis kanaler från iptv-org
+document.querySelectorAll('[data-free]').forEach(b => b.onclick = () =>
+  addPlaylist('Gratis – ' + b.textContent.replace(/^[^\wÅÄÖåäö]+\s*/, ''), `https://iptv-org.github.io/iptv/${b.dataset.free}.m3u`, null));
+
+// ====== XTREAM CODES API ======
+function hostOf(u){ try { return new URL(u).hostname; } catch(_) { return 'Spellista'; } }
+function parseXtream(url){
+  if (!url || !url.startsWith('xtream:')) return null;
+  try { return JSON.parse(url.slice(7)); } catch(_) { return null; }
+}
+function xtFromForm(){
+  let s = $('xtServer').value.trim(); const u = $('xtUser').value.trim(), p = $('xtPass').value;
+  if (!s || !u || !p) { msg($('plMsg'), 'Fyll i server, användarnamn och lösenord.', true); return null; }
+  if (!/^https?:\/\//i.test(s)) s = 'http://' + s;
+  s = s.replace(/\/+$/, '').replace(/\/(player_api|get)\.php.*$/i, '');
+  return { s, u, p, vod: $('xtVod').checked };
+}
+function xtQuery(x){ return `username=${encodeURIComponent(x.u)}&password=${encodeURIComponent(x.p)}`; }
+async function xtApi(x, action){
+  return JSON.parse(await httpText(`${x.s}/player_api.php?${xtQuery(x)}${action ? '&action=' + action : ''}`));
+}
+$('xtTest').onclick = async () => {
+  const x = xtFromForm(); if (!x) return;
+  msg($('plMsg'), 'Testar…');
+  try {
+    const info = (await xtApi(x)).user_info || {};
+    if (String(info.auth) !== '1') return msg($('plMsg'), 'Fel användarnamn eller lösenord.', true);
+    const exp = info.exp_date ? new Date(info.exp_date * 1000).toLocaleDateString('sv-SE') : 'okänt';
+    msg($('plMsg'), `✅ Fungerar! Status: ${info.status || 'okänd'} · Går ut: ${exp} · Max skärmar: ${info.max_connections || '?'}`);
+  } catch (e) {
+    msg($('plMsg'), 'Kunde inte nå servern (' + e.message + '). Kontrollera adressen – servern kan också blockera webbläsare.', true);
+  }
+};
+async function loadXtream(x){
+  const path = `${encodeURIComponent(x.u)}/${encodeURIComponent(x.p)}`;
+  try {
+    const [cats, live, vcats, vod] = await Promise.all([
+      xtApi(x, 'get_live_categories'), xtApi(x, 'get_live_streams'),
+      x.vod ? xtApi(x, 'get_vod_categories').catch(() => []) : [],
+      x.vod ? xtApi(x, 'get_vod_streams').catch(() => []) : []
+    ]);
+    if (!Array.isArray(live)) throw new Error('fel svar');
+    const cm = Object.fromEntries((cats || []).map(c => [String(c.category_id), c.category_name]));
+    const vm = Object.fromEntries((vcats || []).map(c => [String(c.category_id), c.category_name]));
+    return [
+      ...live.map(s => ({ name: s.name, logo: s.stream_icon || '', group: cm[String(s.category_id)] || 'Live',
+        url: `${x.s}/live/${path}/${s.stream_id}.m3u8` })),
+      ...(Array.isArray(vod) ? vod : []).map(s => ({ name: s.name, logo: s.stream_icon || '', group: '🎬 ' + (vm[String(s.category_id)] || 'Film'),
+        url: `${x.s}/movie/${path}/${s.stream_id}.${s.container_extension || 'mp4'}` }))
+    ];
+  } catch (e) {
+    // Reserv: hämta som vanlig M3U-lista
+    try { return parseM3U(await httpText(`${x.s}/get.php?${xtQuery(x)}&type=m3u_plus&output=m3u8`)); }
+    catch (_) { throw e; }
+  }
+}
+
+// ====== DIALOGER ======
+let lastFocus = null;
+function openDialog(id){ lastFocus = document.activeElement; $(id).classList.remove('hidden'); setTimeout(() => $(id).querySelector('input.f, .f')?.focus(), 50); }
+function closeDialogs(){
+  const open = document.querySelector('.overlay:not(.hidden)'); if (!open) return false;
+  open.classList.add('hidden'); msg($('pairMsg'), ''); msg($('plMsg'), '');
+  lastFocus?.focus(); return true;
+}
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = closeDialogs);
+
+// ====== M3U ======
+function parseM3U(text){
+  const out = []; let info = null;
+  for (const raw of text.split(/\r?\n/)){
+    const line = raw.trim(); if (!line) continue;
+    if (line.startsWith('#EXTINF')){
+      const attr = k => (line.match(new RegExp(k + '="([^"]*)"', 'i')) || [])[1] || '';
+      const comma = line.lastIndexOf(',');
+      info = { name: (comma > -1 ? line.slice(comma + 1).trim() : '') || attr('tvg-name') || 'Okänd kanal',
+               logo: attr('tvg-logo'), group: attr('group-title') || 'Övrigt' };
+    } else if (line.startsWith('#EXTGRP:')) { if (info) info.group = line.slice(8).trim(); }
+    else if (!line.startsWith('#')) {
+      out.push({ ...(info || { name: line.split('/').pop() || line, logo: '', group: 'Övrigt' }), url: line });
+      info = null;
+    }
+  }
+  return out;
+}
+
+// ====== KANALLISTA ======
+function setGroups(){
+  const groups = [...new Set(channels.map(c => c.group))].sort((a, b) => a.localeCompare(b, 'sv'));
+  const prev = $('group').value;
+  $('group').innerHTML = '<option value="">Alla grupper</option><option value="__fav">★ Favoriter</option>' +
+    groups.map(g => `<option>${esc(g)}</option>`).join('');
+  if ([...$('group').options].some(o => o.value === prev)) $('group').value = prev;
+}
+function render(){
+  const q = $('search').value.toLowerCase(), g = $('group').value;
+  shown = channels.filter(c => (!q || c.name.toLowerCase().includes(q)) &&
+    (!g || (g === '__fav' ? favs.has(c.url) : c.group === g)));
+  const focusedUrl = document.activeElement?.closest?.('#list li')?.dataset.url;
+  if (!shown.length){
+    $('list').innerHTML = `<li class="empty">${channels.length ? 'Inga kanaler matchar.' : 'Inga kanaler.'}</li>`;
+    $('count').textContent = ''; return;
+  }
+  const max = 1500;
+  $('list').innerHTML = shown.slice(0, max).map((c, i) => `
+    <li class="f ${channels[current] === c ? 'active' : ''}" tabindex="0" data-i="${i}" data-url="${esc(c.url)}">
+      ${c.logo ? `<img src="${esc(c.logo)}" loading="lazy" onerror="this.outerHTML='<div class=ph>TV</div>'">` : '<div class="ph">TV</div>'}
+      <div style="min-width:0"><div class="name">${esc(c.name)}</div><div class="grp">${esc(c.group)}</div></div>
+      <span class="fav ${favs.has(c.url) ? 'on' : ''}" data-fav="${i}">★</span>
+    </li>`).join('');
+  $('count').textContent = shown.length > max ? `Visar ${max} av ${shown.length} – sök för att hitta fler` : `${shown.length} kanaler`;
+  if (focusedUrl) [...$('list').children].find(li => li.dataset.url === focusedUrl)?.focus();
+}
+$('list').addEventListener('click', e => {
+  const f = e.target.closest('[data-fav]');
+  if (f) { toggleFav(shown[+f.dataset.fav]); return; }
+  const li = e.target.closest('li[data-i]');
+  if (li) play(channels.indexOf(shown[+li.dataset.i]));
+});
+$('search').oninput = render;
+$('group').onchange = render;
+
+// ====== UPPSPELNING ======
+function status(t, err){ msg($('status'), t, err); }
+function stop(){
+  if (hls) { hls.destroy(); hls = null; }
+  if (ts) { try { ts.destroy(); } catch(_) {} ts = null; }
+  video.onerror = null;
+  video.removeAttribute('src'); video.load();
+}
+const video = $('video');
+function play(i){
+  if (i < 0 || i >= channels.length) return;
+  current = i; const c = channels[i];
+  stop(); render();
+  $('now').textContent = c.name;
+  status('Ansluter…');
+  saveSettings({ last_channel_url: c.url, last_channel_name: c.name });
+  const url = c.url, lower = url.toLowerCase().split('?')[0];
+  const isTs = /\.ts$/.test(lower) || /\/live\/[^/]+\/[^/]+\/\d+$/.test(lower) || /:\d+\/[^/.]+\/[^/.]+\/\d+$/.test(lower);
+  const nativeHls = !NATIVE && video.canPlayType('application/vnd.apple.mpegurl');
+
+  if (NATIVE && !c._fallback) {
+    video.src = url;
+    video.play().catch(() => {});
+    video.onerror = () => { video.onerror = null; c._fallback = true; play(i); };
+    return;
+  }
+  video.onerror = null;
+  if (isTs && window.mpegts && mpegts.isSupported()){
+    ts = mpegts.createPlayer({ type: 'mpegts', isLive: true, url });
+    ts.attachMediaElement(video); ts.load();
+    ts.on(mpegts.Events.ERROR, () => status('Kunde inte spela strömmen. Den kan vara offline eller blockera webbläsare.', true));
+    video.play().catch(() => {});
+  } else if (!nativeHls && window.Hls && Hls.isSupported() && !/\.(mp4|webm|mp3|aac)$/.test(lower)){
+    hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+    hls.loadSource(url); hls.attachMedia(video);
+    hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+    hls.on(Hls.Events.ERROR, (_, d) => {
+      if (!d.fatal) return;
+      if (d.type === Hls.ErrorTypes.MEDIA_ERROR) { hls.recoverMediaError(); return; }
+      status('Kunde inte spela strömmen. Den kan vara offline eller blockera webbläsare.', true);
+    });
+  } else {
+    video.src = url; video.play().catch(() => {});
+  }
+}
+video.addEventListener('playing', () => status(''));
+video.addEventListener('waiting', () => status('Buffrar…'));
+video.addEventListener('error', () => { if (!hls && !ts && video.getAttribute('src')) status('Kunde inte spela den här strömmen.', true); });
+
+function step(d){
+  if (!shown.length) return;
+  let pos = shown.indexOf(channels[current]);
+  pos = (pos + d + shown.length) % shown.length;
+  play(channels.indexOf(shown[pos]));
+}
+function fullscreen(){
+  const el = video;
+  if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  else (el.requestFullscreen || el.webkitRequestFullscreen || el.webkitEnterFullscreen)?.call(el)?.catch?.(() => {});
+}
+$('prevBtn').onclick = () => step(-1);
+$('nextBtn').onclick = () => step(1);
+$('fullBtn').onclick = fullscreen;
+
+// ====== FJÄRRKONTROLL / TANGENTBORD ======
+const KEY = { LEFT: [37], UP: [38], RIGHT: [39], DOWN: [40], OK: [13],
+  BACK: [461, 10009, 27, 8], CH_UP: [427, 33], CH_DOWN: [428, 34], PLAYPAUSE: [415, 19, 10252, 179, 32] };
+const is = (k, name) => KEY[name].includes(k);
+if (IS_TV) $('tvHint').textContent = 'Pilar: navigera · OK: välj · CH+/CH−: byt kanal · Tillbaka: avsluta helskärm/stäng';
+try { // Samsung Tizen: be om fjärrkontrollens extra knappar
+  ['ChannelUp','ChannelDown','MediaPlayPause','MediaPlay','MediaPause'].forEach(k => tizen.tvinputdevice.registerKey(k));
+} catch(_) {}
+
+function focusables(){
+  const scope = document.querySelector('.overlay:not(.hidden)') || document.querySelector('#loginView:not(.hidden), #codeView:not(.hidden), #app:not(.hidden)');
+  return scope ? [...scope.querySelectorAll('.f')].filter(el => el.offsetParent !== null && !el.disabled) : [];
+}
+function moveFocus(dir){
+  const cur = document.activeElement, all = focusables();
+  if (!all.includes(cur)) { all[0]?.focus(); return; }
+  // Snabbväg i kanallistan: upp/ned går till grannen direkt
+  if (cur.matches('#list li') && (dir === 'up' || dir === 'down')) {
+    const nxt = dir === 'down' ? cur.nextElementSibling : cur.previousElementSibling;
+    if (nxt?.classList.contains('f')) { nxt.focus(); nxt.scrollIntoView({ block: 'nearest' }); return; }
+  }
+  const a = cur.getBoundingClientRect(), ax = a.left + a.width / 2, ay = a.top + a.height / 2;
+  let best = null, bestScore = Infinity;
+  for (const el of all) {
+    if (el === cur) continue;
+    const b = el.getBoundingClientRect(), bx = b.left + b.width / 2, by = b.top + b.height / 2;
+    const dx = bx - ax, dy = by - ay;
+    const ok = dir === 'right' ? b.left >= a.right - 4 : dir === 'left' ? b.right <= a.left + 4 :
+               dir === 'down' ? b.top >= a.bottom - 4 : b.bottom <= a.top + 4;
+    if (!ok) continue;
+    const main = (dir === 'left' || dir === 'right') ? Math.abs(dx) : Math.abs(dy);
+    const cross = (dir === 'left' || dir === 'right') ? Math.abs(dy) : Math.abs(dx);
+    const score = main + cross * 3;
+    if (score < bestScore) { bestScore = score; best = el; }
+  }
+  if (best) { best.focus(); best.scrollIntoView?.({ block: 'nearest' }); }
+}
+
+document.addEventListener('keydown', e => {
+  const k = e.keyCode, t = e.target;
+  const typing = t.matches?.('input[type=text],input[type=email],input[type=password],input[type=url]');
+  const isFull = document.fullscreenElement || document.webkitFullscreenElement;
+
+  if (e.repeat && is(k, 'OK')) { e.preventDefault(); return; } // hållen OK-knapp = favorit, inte upprepade klick
+  if (is(k, 'BACK')) {
+    if (k === 8 && typing) return;
+    if (isFull) { e.preventDefault(); fullscreen(); return; }
+    if (closeDialogs()) { e.preventDefault(); return; }
+    if (k !== 8 && k !== 27) e.preventDefault(); // stanna kvar i appen på TV:n
+    return;
+  }
+  if (!$('app').classList.contains('hidden') && !document.querySelector('.overlay:not(.hidden)')) {
+    if (is(k, 'CH_UP') && !typing) { e.preventDefault(); step(-1); return; }
+    if (is(k, 'CH_DOWN') && !typing) { e.preventDefault(); step(1); return; }
+    if (is(k, 'PLAYPAUSE') && !typing && !(k === 32 && t.matches('button,li'))) {
+      e.preventDefault(); video.paused ? video.play().catch(() => {}) : video.pause(); return;
+    }
+    if (isFull && (is(k, 'UP') || is(k, 'DOWN'))) { e.preventDefault(); step(is(k, 'UP') ? -1 : 1); return; }
+    if (k === 70 && !typing) { fullscreen(); return; } // F
+  }
+  if (typing && (is(k, 'LEFT') || is(k, 'RIGHT'))) return; // flytta markören i textfält
+  if (is(k, 'UP')) { e.preventDefault(); moveFocus('up'); }
+  else if (is(k, 'DOWN')) { e.preventDefault(); moveFocus('down'); }
+  else if (is(k, 'LEFT')) { e.preventDefault(); moveFocus('left'); }
+  else if (is(k, 'RIGHT')) { e.preventDefault(); moveFocus('right'); }
+  else if (is(k, 'OK') && t.matches?.('li.f, label.f')) {
+    e.preventDefault();
+    if (t.matches('label.f')) t.querySelector('input')?.click();
+    else if (IS_TV && channels[current] === shown[+t.dataset.i]) fullscreen();
+    else t.click();
+  }
+});
+// Långt tryck på OK på en kanal = favorit (TV)
+let okDown = 0;
+document.addEventListener('keydown', e => { if (e.keyCode === 13 && !e.repeat) okDown = Date.now(); });
+document.addEventListener('keyup', e => {
+  if (e.keyCode === 13 && Date.now() - okDown > 700) {
+    const li = document.activeElement?.closest?.('#list li[data-i]');
+    if (li) toggleFav(shown[+li.dataset.i]);
+  }
+});
+</script>
+</body>
+</html>

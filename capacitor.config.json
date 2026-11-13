@@ -1,0 +1,7 @@
+{
+  "appId": "se.fredriklofsten.iptv",
+  "appName": "IPTV-spelare",
+  "webDir": "www",
+  "server": { "androidScheme": "http", "cleartext": true },
+  "android": { "allowMixedContent": true }
+}

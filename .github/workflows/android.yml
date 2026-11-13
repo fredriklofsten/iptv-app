@@ -1,0 +1,38 @@
+name: Bygg Android-app
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npx cap sync android
+      - name: Bygg APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../IPTV-spelare.apk
+      - name: Publicera nedladdning
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: IPTV-spelare version ${{ github.run_number }}
+          body: Ladda ner IPTV-spelare.apk på telefonen eller TV-boxen och installera den.
+          files: IPTV-spelare.apk
+          make_latest: true
