@@ -76,6 +76,16 @@
   .pane{display:flex;flex-direction:column;gap:10px}
   .freegrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .chk{display:flex;gap:8px;align-items:center;color:var(--mute)}
+  .sections{display:flex;gap:6px;padding:10px 10px 0}
+  .sec{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--mute);padding:.5em .3em}
+  .sec.on{background:var(--accbg);color:var(--text);border-color:var(--acc)}
+  .filters+.filters{padding-top:0}
+  .filters select{flex:1;min-width:0;max-width:none!important}
+  #list .meta{font-size:.8em;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #list .num{font-size:.8em;color:var(--mute);min-width:2.2em;text-align:right}
+  #list .poster{width:2.4em;height:3.4em;object-fit:cover}
+  .eplist{display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow:auto}
+  .eplist button{text-align:left;white-space:normal}
 
   @media (max-width:760px){
     main{flex-direction:column}
@@ -127,9 +137,17 @@
   </header>
   <main>
     <aside>
+      <div class="sections hidden" id="sections">
+        <button class="f sec on" type="button" data-sec="live">📺 Live-TV</button>
+        <button class="f sec" type="button" data-sec="movie">🎬 Filmer</button>
+        <button class="f sec" type="button" data-sec="series">🎞️ Serier</button>
+      </div>
       <div class="filters">
-        <input class="f" id="search" type="text" placeholder="Sök kanal…">
+        <input class="f" id="search" type="text" placeholder="Sök…">
+      </div>
+      <div class="filters">
         <select class="f" id="group"><option value="">Alla grupper</option></select>
+        <select class="f" id="sort" title="Sortering"></select>
       </div>
       <ul id="list"></ul>
       <div class="count" id="count"></div>
@@ -194,6 +212,18 @@
   </form>
 </div>
 
+<!-- Dialog: serie -->
+<div id="serDialog" class="overlay hidden">
+  <div class="card">
+    <h2 id="serTitle"></h2>
+    <div class="msg" id="serMeta"></div>
+    <select class="f" id="serSeason"></select>
+    <div id="serEps" class="eplist"></div>
+    <div class="msg" id="serMsg"></div>
+    <button class="f ghost" type="button" data-close>Stäng</button>
+  </div>
+</div>
+
 <!-- Dialog: koppla TV -->
 <div id="pairDialog" class="overlay hidden">
   <form class="card" id="pairForm">
@@ -223,6 +253,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const IS_TV = /Web0S|webOS|Tizen|SMART-TV|SmartTV|Android TV|AFT[A-Z]|BRAVIA|GoogleTV|CrKey/i.test(navigator.userAgent) || location.hash === '#tv';
 if (IS_TV) document.body.classList.add('tv');
 
+let curXt = null, section = 'live';
 let user = null, playlists = [], channels = [], shown = [], current = -1;
 let favs = new Map(), settings = {}, hls = null, ts = null, rtChannel = null, codeTimer = null;
 
@@ -345,6 +376,7 @@ async function loadPlaylist(id, resume){
   status('Läser in ' + p.name + '…');
   const xt = parseXtream(p.url);
   if (xt) {
+    curXt = xt;
     try { channels = await loadXtream(xt); }
     catch (e) { status('Kunde inte hämta kanaler från leverantören (' + e.message + '). Kontrollera server, användarnamn och lösenord.', true); channels = []; setGroups(); render(); return; }
   } else {
@@ -353,6 +385,7 @@ async function loadPlaylist(id, resume){
       try { text = await httpText(p.url); }
       catch (e) { status('Kunde inte hämta spellistan (' + e.message + '). Servern kan blockera webbläsare – ladda upp filen i stället.', true); channels = []; render(); return; }
     }
+    curXt = null;
     channels = parseM3U(text || '');
   }
   setGroups(); render();
@@ -503,19 +536,25 @@ $('xtTest').onclick = async () => {
 async function loadXtream(x){
   const path = `${encodeURIComponent(x.u)}/${encodeURIComponent(x.p)}`;
   try {
-    const [cats, live, vcats, vod] = await Promise.all([
+    const opt = a => x.vod ? xtApi(x, a).catch(() => []) : [];
+    const [cats, live, vcats, vod, scats, series] = await Promise.all([
       xtApi(x, 'get_live_categories'), xtApi(x, 'get_live_streams'),
-      x.vod ? xtApi(x, 'get_vod_categories').catch(() => []) : [],
-      x.vod ? xtApi(x, 'get_vod_streams').catch(() => []) : []
+      opt('get_vod_categories'), opt('get_vod_streams'), opt('get_series_categories'), opt('get_series')
     ]);
     if (!Array.isArray(live)) throw new Error('fel svar');
-    const cm = Object.fromEntries((cats || []).map(c => [String(c.category_id), c.category_name]));
-    const vm = Object.fromEntries((vcats || []).map(c => [String(c.category_id), c.category_name]));
+    const map = list => Object.fromEntries((Array.isArray(list) ? list : []).map(c => [String(c.category_id), c.category_name]));
+    const cm = map(cats), vm = map(vcats), sm = map(scats);
+    const arr = a => Array.isArray(a) ? a : [];
+    const rating = s => parseFloat(s.rating) || (parseFloat(s.rating_5based) * 2) || 0;
     return [
-      ...live.map(s => ({ name: s.name, logo: s.stream_icon || '', group: cm[String(s.category_id)] || 'Live',
-        url: `${x.s}/live/${path}/${s.stream_id}.m3u8` })),
-      ...(Array.isArray(vod) ? vod : []).map(s => ({ name: s.name, logo: s.stream_icon || '', group: '🎬 ' + (vm[String(s.category_id)] || 'Film'),
-        url: `${x.s}/movie/${path}/${s.stream_id}.${s.container_extension || 'mp4'}` }))
+      ...live.map(s => ({ type: 'live', name: s.name, logo: s.stream_icon || '', group: cm[String(s.category_id)] || 'Övrigt',
+        num: +s.num || 0, added: +s.added || 0, url: `${x.s}/live/${path}/${s.stream_id}.m3u8` })),
+      ...arr(vod).map(s => ({ type: 'movie', name: s.name, logo: s.stream_icon || '', group: vm[String(s.category_id)] || 'Övrigt',
+        added: +s.added || 0, rating: rating(s), year: s.year || '',
+        url: `${x.s}/movie/${path}/${s.stream_id}.${s.container_extension || 'mp4'}` })),
+      ...arr(series).map(s => ({ type: 'series', name: s.name, logo: s.cover || '', group: sm[String(s.category_id)] || 'Övrigt',
+        added: +s.last_modified || (Date.parse(s.releaseDate || s.release_date) / 1000) || 0, rating: rating(s),
+        year: (s.releaseDate || s.release_date || '').slice(0, 4), seriesId: s.series_id, url: `xtseries:${s.series_id}` }))
     ];
   } catch (e) {
     // Reserv: hämta som vanlig M3U-lista
@@ -543,10 +582,11 @@ function parseM3U(text){
       const attr = k => (line.match(new RegExp(k + '="([^"]*)"', 'i')) || [])[1] || '';
       const comma = line.lastIndexOf(',');
       info = { name: (comma > -1 ? line.slice(comma + 1).trim() : '') || attr('tvg-name') || 'Okänd kanal',
-               logo: attr('tvg-logo'), group: attr('group-title') || 'Övrigt' };
+               logo: attr('tvg-logo'), group: attr('group-title') || 'Övrigt', num: +attr('tvg-chno') || 0 };
     } else if (line.startsWith('#EXTGRP:')) { if (info) info.group = line.slice(8).trim(); }
     else if (!line.startsWith('#')) {
-      out.push({ ...(info || { name: line.split('/').pop() || line, logo: '', group: 'Övrigt' }), url: line });
+      const type = /\/movie\//i.test(line) ? 'movie' : /\/series\//i.test(line) ? 'series' : 'live';
+      out.push({ ...(info || { name: line.split('/').pop() || line, logo: '', group: 'Övrigt' }), url: line, type });
       info = null;
     }
   }
@@ -554,40 +594,140 @@ function parseM3U(text){
 }
 
 // ====== KANALLISTA ======
+const SORTS = {
+  live:   [['std','Leverantörens ordning'],['num','Kanalnummer'],['name','Namn A–Ö'],['recent','Senast sedda']],
+  movie:  [['new','Senast tillagda'],['pop','Populärast'],['name','Namn A–Ö'],['recent','Senast sedda']],
+  series: [['new','Senast tillagda'],['pop','Populärast'],['name','Namn A–Ö'],['recent','Senast sedda']]
+};
+const store = { get(k, d){ try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch(_) { return d; } },
+                set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(_) {} } };
+let hist = store.get('iptv_hist', {});
+function remember(c){ hist[c.url] = Date.now(); store.set('iptv_hist', hist); }
+
 function setGroups(){
-  const groups = [...new Set(channels.map(c => c.group))].sort((a, b) => a.localeCompare(b, 'sv'));
+  // Flikar: visa bara de sorter som finns i spellistan
+  const has = t => channels.some(c => (c.type || 'live') === t);
+  const avail = ['live','movie','series'].filter(has);
+  if (!avail.includes(section)) section = avail[0] || 'live';
+  document.querySelectorAll('.sec').forEach(b => { b.classList.toggle('hidden', !has(b.dataset.sec)); b.classList.toggle('on', b.dataset.sec === section); });
+  $('sections').classList.toggle('hidden', avail.length < 2);
+  $('search').placeholder = { live: 'Sök kanal…', movie: 'Sök film…', series: 'Sök serie…' }[section];
+
+  // Grupper med antal, A–Ö
+  const counts = {};
+  channels.forEach(c => { if ((c.type || 'live') === section) counts[c.group] = (counts[c.group] || 0) + 1; });
+  const groups = Object.keys(counts).sort((a, b) => a.localeCompare(b, 'sv'));
   const prev = $('group').value;
-  $('group').innerHTML = '<option value="">Alla grupper</option><option value="__fav">★ Favoriter</option>' +
-    groups.map(g => `<option>${esc(g)}</option>`).join('');
-  if ([...$('group').options].some(o => o.value === prev)) $('group').value = prev;
+  $('group').innerHTML = '<option value="">Alla kategorier</option><option value="__fav">★ Favoriter</option>' +
+    groups.map(g => `<option value="${esc(g)}">${esc(g)} (${counts[g]})</option>`).join('');
+  $('group').value = [...$('group').options].some(o => o.value === prev) ? prev : '';
+
+  // Sortering, sparad per flik
+  const saved = store.get('iptv_sort_' + section, SORTS[section][0][0]);
+  $('sort').innerHTML = SORTS[section].map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
+  $('sort').value = SORTS[section].some(([v]) => v === saved) ? saved : SORTS[section][0][0];
 }
+
+function sortList(list){
+  const by = $('sort').value, sv = (a, b) => a.name.localeCompare(b.name, 'sv', { numeric: true });
+  const idx = new Map(channels.map((c, i) => [c, i]));
+  const std = (a, b) => idx.get(a) - idx.get(b);
+  const cmp = {
+    std,
+    name: sv,
+    num: (a, b) => (a.num || 1e9) - (b.num || 1e9) || std(a, b),
+    new: (a, b) => (b.added || 0) - (a.added || 0) || sv(a, b),
+    pop: (a, b) => (b.rating || 0) - (a.rating || 0) || (b.added || 0) - (a.added || 0),
+    recent: (a, b) => (hist[b.url] || 0) - (hist[a.url] || 0) || std(a, b)
+  }[by] || std;
+  return list.slice().sort(cmp);
+}
+
+function metaLine(c){
+  const parts = [c.group];
+  if (c.rating) parts.push('★ ' + (Math.round(c.rating * 10) / 10));
+  if (c.year) parts.push(c.year);
+  if ($('sort').value === 'new' && c.added) parts.push('tillagd ' + new Date(c.added * 1000).toLocaleDateString('sv-SE'));
+  if ($('sort').value === 'recent' && hist[c.url]) parts.push('sedd ' + new Date(hist[c.url]).toLocaleDateString('sv-SE'));
+  return parts.join(' · ');
+}
+
 function render(){
   const q = $('search').value.toLowerCase(), g = $('group').value;
-  shown = channels.filter(c => (!q || c.name.toLowerCase().includes(q)) &&
-    (!g || (g === '__fav' ? favs.has(c.url) : c.group === g)));
+  shown = sortList(channels.filter(c => (c.type || 'live') === section && (!q || c.name.toLowerCase().includes(q)) &&
+    (!g || (g === '__fav' ? favs.has(c.url) : c.group === g))));
+  if ($('sort').value === 'recent' && !q) { const seen = shown.filter(c => hist[c.url]); if (seen.length) shown = seen; }
   const focusedUrl = document.activeElement?.closest?.('#list li')?.dataset.url;
+  const word = { live: 'kanaler', movie: 'filmer', series: 'serier' }[section];
   if (!shown.length){
-    $('list').innerHTML = `<li class="empty">${channels.length ? 'Inga kanaler matchar.' : 'Inga kanaler.'}</li>`;
+    $('list').innerHTML = `<li class="empty">${channels.length ? 'Inget matchar.' : 'Inga kanaler.'}</li>`;
     $('count').textContent = ''; return;
   }
-  const max = 1500;
+  const max = 1500, poster = section !== 'live';
   $('list').innerHTML = shown.slice(0, max).map((c, i) => `
     <li class="f ${channels[current] === c ? 'active' : ''}" tabindex="0" data-i="${i}" data-url="${esc(c.url)}">
-      ${c.logo ? `<img src="${esc(c.logo)}" loading="lazy" onerror="this.outerHTML='<div class=ph>TV</div>'">` : '<div class="ph">TV</div>'}
-      <div style="min-width:0"><div class="name">${esc(c.name)}</div><div class="grp">${esc(c.group)}</div></div>
+      ${section === 'live' && $('sort').value === 'num' ? `<span class="num">${c.num || ''}</span>` : ''}
+      ${c.logo ? `<img class="${poster ? 'poster' : ''}" src="${esc(c.logo)}" loading="lazy" onerror="this.outerHTML='<div class=ph>TV</div>'">` : '<div class="ph">TV</div>'}
+      <div style="min-width:0"><div class="name">${esc(c.name)}</div><div class="meta">${esc(metaLine(c))}</div></div>
       <span class="fav ${favs.has(c.url) ? 'on' : ''}" data-fav="${i}">★</span>
     </li>`).join('');
-  $('count').textContent = shown.length > max ? `Visar ${max} av ${shown.length} – sök för att hitta fler` : `${shown.length} kanaler`;
+  $('count').textContent = shown.length > max ? `Visar ${max} av ${shown.length} ${word} – sök för att hitta fler` : `${shown.length} ${word}`;
   if (focusedUrl) [...$('list').children].find(li => li.dataset.url === focusedUrl)?.focus();
 }
+document.querySelectorAll('.sec').forEach(b => b.onclick = () => {
+  section = b.dataset.sec; $('search').value = ''; $('group').value = ''; setGroups(); render();
+  $('list').scrollTop = 0;
+});
+$('sort').onchange = () => { store.set('iptv_sort_' + section, $('sort').value); render(); $('list').scrollTop = 0; };
+
+// ====== SERIER ======
+let serData = null, serItem = null;
+async function openSeries(c){
+  serItem = c;
+  $('serTitle').textContent = c.name; $('serMeta').textContent = metaLine(c);
+  $('serSeason').innerHTML = ''; $('serEps').innerHTML = ''; msg($('serMsg'), 'Hämtar avsnitt…');
+  openDialog('serDialog');
+  try {
+    serData = await xtApi(curXt, 'get_series_info&series_id=' + encodeURIComponent(c.seriesId));
+    const eps = serData.episodes || {};
+    const seasons = Object.keys(eps).sort((a, b) => a - b);
+    if (!seasons.length) return msg($('serMsg'), 'Inga avsnitt hittades.', true);
+    if (serData.info?.plot) $('serMeta').textContent = metaLine(c) + ' — ' + serData.info.plot;
+    $('serSeason').innerHTML = seasons.map(n => `<option value="${n}">Säsong ${n} (${eps[n].length} avsnitt)</option>`).join('');
+    msg($('serMsg'), '');
+    renderEpisodes();
+    $('serSeason').focus();
+  } catch (e) { msg($('serMsg'), 'Kunde inte hämta avsnitt (' + e.message + ').', true); }
+}
+function renderEpisodes(){
+  const list = (serData.episodes || {})[$('serSeason').value] || [];
+  $('serEps').innerHTML = list.map((ep, i) => {
+    const url = epUrl(ep);
+    return `<button class="f ghost" type="button" data-ep="${i}">${hist[url] ? '✓ ' : ''}${ep.episode_num || i + 1}. ${esc(ep.title || 'Avsnitt')}</button>`;
+  }).join('');
+}
+function epUrl(ep){
+  return `${curXt.s}/series/${encodeURIComponent(curXt.u)}/${encodeURIComponent(curXt.p)}/${ep.id}.${ep.container_extension || 'mp4'}`;
+}
+$('serSeason').onchange = renderEpisodes;
+$('serEps').onclick = e => {
+  const b = e.target.closest('[data-ep]'); if (!b) return;
+  const ep = serData.episodes[$('serSeason').value][+b.dataset.ep];
+  remember(serItem);
+  closeDialogs();
+  startStream({ name: `${serItem.name} – S${$('serSeason').value}E${ep.episode_num || +b.dataset.ep + 1} ${ep.title || ''}`, url: epUrl(ep), type: 'movie' });
+};
+
 $('list').addEventListener('click', e => {
   const f = e.target.closest('[data-fav]');
   if (f) { toggleFav(shown[+f.dataset.fav]); return; }
   const li = e.target.closest('li[data-i]');
-  if (li) play(channels.indexOf(shown[+li.dataset.i]));
+  if (!li) return;
+  const c = shown[+li.dataset.i];
+  if (c.seriesId && curXt) openSeries(c); else play(channels.indexOf(c));
 });
 $('search').oninput = render;
-$('group').onchange = render;
+$('group').onchange = () => { render(); $('list').scrollTop = 0; };
 
 // ====== UPPSPELNING ======
 function status(t, err){ msg($('status'), t, err); }
@@ -601,10 +741,16 @@ const video = $('video');
 function play(i){
   if (i < 0 || i >= channels.length) return;
   current = i; const c = channels[i];
-  stop(); render();
+  if (c.seriesId && curXt) { openSeries(c); return; }
+  remember(c);
+  saveSettings({ last_channel_url: c.url, last_channel_name: c.name });
+  startStream(c);
+  render();
+}
+function startStream(c){
+  stop();
   $('now').textContent = c.name;
   status('Ansluter…');
-  saveSettings({ last_channel_url: c.url, last_channel_name: c.name });
   const url = c.url, lower = url.toLowerCase().split('?')[0];
   const isTs = /\.ts$/.test(lower) || /\/live\/[^/]+\/[^/]+\/\d+$/.test(lower) || /:\d+\/[^/.]+\/[^/.]+\/\d+$/.test(lower);
   const nativeHls = !NATIVE && video.canPlayType('application/vnd.apple.mpegurl');
@@ -612,12 +758,12 @@ function play(i){
   if (NATIVE && !c._fallback) {
     video.src = url;
     video.play().catch(() => {});
-    video.onerror = () => { video.onerror = null; c._fallback = true; play(i); };
+    video.onerror = () => { video.onerror = null; c._fallback = true; startStream(c); };
     return;
   }
   video.onerror = null;
   if (isTs && window.mpegts && mpegts.isSupported()){
-    ts = mpegts.createPlayer({ type: 'mpegts', isLive: true, url });
+    ts = mpegts.createPlayer({ type: 'mpegts', isLive: (c.type || 'live') === 'live', url });
     ts.attachMediaElement(video); ts.load();
     ts.on(mpegts.Events.ERROR, () => status('Kunde inte spela strömmen. Den kan vara offline eller blockera webbläsare.', true));
     video.play().catch(() => {});
