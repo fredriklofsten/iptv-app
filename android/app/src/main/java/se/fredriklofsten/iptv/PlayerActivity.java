@@ -56,6 +56,14 @@ public class PlayerActivity extends AppCompatActivity {
     private LinearLayout zapBox;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private DefaultMediaSourceFactory sources;
+    // Många IPTV-leverantörer släpper bara igenom kända spelare. Vi provar dessa i tur och ordning.
+    private static final String[] USER_AGENTS = {
+        "VLC/3.0.20 LibVLC/3.0.20",
+        "IPTVSmartersPlayer",
+        "Lavf/60.16.100"
+    };
+    private int uaIndex = 0;
+    private String errorDetail = null;
     // Google Cast
     private CastPlayer castPlayer;
     private Player active;
@@ -124,12 +132,7 @@ public class PlayerActivity extends AppCompatActivity {
             view.setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) vis -> zapBox.setVisibility(vis));
         }
 
-        DefaultHttpDataSource.Factory http = new DefaultHttpDataSource.Factory()
-            .setAllowCrossProtocolRedirects(true)
-            .setUserAgent("IPTV-spelare/1.0 (Linux; Android) ExoPlayer")
-            .setConnectTimeoutMs(15000)
-            .setReadTimeoutMs(20000);
-        sources = new DefaultMediaSourceFactory(new DefaultDataSource.Factory(this, http));
+        sources = sourcesFor(USER_AGENTS[0]);
         DefaultRenderersFactory renderers = new DefaultRenderersFactory(this)
             .setEnableDecoderFallback(true)
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER);
@@ -145,8 +148,7 @@ public class PlayerActivity extends AppCompatActivity {
         view.setPlayer(player);
         active = player;
 
-        player.setMediaItem(itemFor(url, title));
-        if (startMs > 0) player.seekTo(startMs);
+        player.setMediaSource(sources.createMediaSource(itemFor(url, title)), Math.max(0, startMs));
         player.setPlayWhenReady(true);
         player.prepare();
 
@@ -155,9 +157,13 @@ public class PlayerActivity extends AppCompatActivity {
                 if (state == Player.STATE_ENDED && active == player) { ended = true; done(); }
             }
             @Override public void onPlayerError(PlaybackException e) {
+                // Nätverksfel: prova nästa spelaridentitet innan vi ger upp
+                if (isNetworkError(e) && uaIndex < USER_AGENTS.length - 1) { retryWithNextAgent(); return; }
                 // Live: en kanal som inte fungerar ska inte stänga spelaren – visa felet och låt användaren byta
-                if (urls != null && urls.size() > 1) { showLabel("Kanalen fungerar inte just nu – byt med ▲▼"); return; }
+                if (urls != null && urls.size() > 1) { showLabel("Kanalen fungerar inte just nu – byt med ▲▼"); uaIndex = 0; return; }
                 error = e.getErrorCodeName();
+                Throwable c = e.getCause();
+                errorDetail = "försök=" + (uaIndex + 1) + " ua=" + USER_AGENTS[uaIndex] + (c != null ? " orsak=" + c.getClass().getSimpleName() + ": " + c.getMessage() : "");
                 done();
             }
         });
@@ -171,6 +177,35 @@ public class PlayerActivity extends AppCompatActivity {
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override public void handleOnBackPressed() { done(); }
         });
+    }
+
+    private DefaultMediaSourceFactory sourcesFor(String userAgent) {
+        DefaultHttpDataSource.Factory http = new DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setUserAgent(userAgent)
+            .setConnectTimeoutMs(30000)
+            .setReadTimeoutMs(45000)
+            .setKeepPostFor302Redirects(true);
+        return new DefaultMediaSourceFactory(new DefaultDataSource.Factory(this, http));
+    }
+
+    private boolean isNetworkError(PlaybackException e) {
+        int c = e.errorCode;
+        return c == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
+            || c == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED
+            || c == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
+            || c == PlaybackException.ERROR_CODE_IO_UNSPECIFIED;
+    }
+
+    // Starta om samma video med nästa spelaridentitet och fortsätt där vi var
+    private void retryWithNextAgent() {
+        uaIndex++;
+        long pos = isLive ? C.TIME_UNSET : Math.max(0, player.getCurrentPosition());
+        sources = sourcesFor(USER_AGENTS[uaIndex]);
+        player.setMediaSource(sources.createMediaSource(itemFor(curUrl, curTitle)), pos == C.TIME_UNSET ? 0 : pos);
+        player.prepare();
+        player.setPlayWhenReady(true);
+        showLabel("Ansluter igen… (" + (uaIndex + 1) + "/" + USER_AGENTS.length + ")");
     }
 
     private String mimeFor(String url) {
@@ -238,7 +273,8 @@ public class PlayerActivity extends AppCompatActivity {
         long pos = isLive ? C.TIME_UNSET : prev.getCurrentPosition();
         active = target;
         MediaItem item = itemFor(curUrl, curTitle);
-        if (pos != C.TIME_UNSET && pos > 0) target.setMediaItem(item, pos); else target.setMediaItem(item);
+        if (target == player) player.setMediaSource(sources.createMediaSource(item), pos != C.TIME_UNSET && pos > 0 ? pos : 0);
+        else if (pos != C.TIME_UNSET && pos > 0) target.setMediaItem(item, pos); else target.setMediaItem(item);
         target.setPlayWhenReady(true);
         target.prepare();
         prev.stop();
@@ -264,7 +300,9 @@ public class PlayerActivity extends AppCompatActivity {
         if (urls == null || urls.size() < 2 || player == null) return;
         index = (index + d + urls.size()) % urls.size();
         curUrl = urls.get(index); curTitle = titles.get(index);
-        active.setMediaItem(itemFor(curUrl, curTitle));
+        uaIndex = 0;
+        if (active == player) { sources = sourcesFor(USER_AGENTS[0]); player.setMediaSource(sources.createMediaSource(itemFor(curUrl, curTitle))); }
+        else active.setMediaItem(itemFor(curUrl, curTitle));
         active.prepare();
         active.setPlayWhenReady(true);
         showLabel(titles.get(index));
@@ -316,6 +354,7 @@ public class PlayerActivity extends AppCompatActivity {
         result.putExtra("ended", ended);
         result.putExtra("index", index);
         if (error != null) result.putExtra("error", error);
+        if (errorDetail != null) result.putExtra("errorDetail", errorDetail);
         setResult(RESULT_OK, result);
         finish();
     }

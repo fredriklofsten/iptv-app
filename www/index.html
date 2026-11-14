@@ -2172,7 +2172,7 @@ async function runNative(c, opts = {}){
   catch (e) { r = { error: e?.message || 'okänt fel' }; }
   nativeBusy = false; r = r || {};
   if (r.error) {
-    reportError('player', r.error, { type: TYPE(c), url: c.url, name: c.name });
+    reportError('player', r.error, { type: TYPE(c), url: c.url, name: c.name, detail: r.errorDetail || '' });
     if (ExternalPlayer) { status('Den inbyggda spelaren klarade inte den här. Öppnar i annan spelare…'); setTimeout(() => status(''), 4000); openExternal(c); }
     else status('Kunde inte spela (' + r.error + ').', true);
     return;

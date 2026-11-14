@@ -59,6 +59,8 @@ public class NativePlayerPlugin extends Plugin {
             out.put("index", data.getIntExtra("index", -1));
             String err = data.getStringExtra("error");
             if (err != null) out.put("error", err);
+            String det = data.getStringExtra("errorDetail");
+            if (det != null) out.put("errorDetail", det);
         }
         call.resolve(out);
     }
