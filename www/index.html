@@ -94,6 +94,14 @@
   .ptr.ready #ptrIcon{transform:rotate(180deg)}
   .ptr.busy #ptrIcon{animation:spin 1s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
+  button.bt{flex-shrink:0;width:220px;aspect-ratio:16/9;border-radius:10px;border:2px solid rgba(255,255,255,.12);background:radial-gradient(120% 120% at 30% 20%,var(--a),var(--b));color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:10px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.45);transition:transform .15s,border-color .15s}
+  button.bt b{font-size:1.35em;letter-spacing:.02em;text-shadow:0 2px 10px rgba(0,0,0,.6)}
+  button.bt small{font-size:.75em;opacity:.85}
+  button.bt:hover,button.bt:focus{transform:scale(1.06);border-color:#fff}
+  body.tv button.bt{width:280px}
+  @media (max-width:760px){ button.bt{width:160px} button.bt b{font-size:1.1em} }
+  .collhero{padding:90px 4% 26px;background:radial-gradient(120% 140% at 20% 0%,var(--a),var(--b) 70%,#0b0b0f)}
+  .collhero h1{margin:0;font-size:2.6em;text-shadow:0 2px 14px rgba(0,0,0,.6)}
   #topnav.solid{background:#0b0b0f;box-shadow:0 2px 12px rgba(0,0,0,.5)}
   .brand{font-size:1.35em;letter-spacing:.04em;color:var(--focus);white-space:nowrap}
   .brand b{color:#fff}
@@ -1057,7 +1065,7 @@ function remember(c){ hist[c.url] = Date.now(); store.set(pk('hist'), hist); pus
 
 const TYPE = c => c.type || 'live';
 let view = 'home', byType = { live: [], movie: [], series: [] }, idxOf = new Map();
-const vstate = { live: { cat: '', limit: 200 }, movie: { cat: '', genre: '', limit: 120 }, series: { cat: '', genre: '', limit: 120 }, fav: {}, search: { q: '' }, ppv: { sport: '' }, guide: { cat: '' } };
+const vstate = { live: { cat: '', limit: 200 }, movie: { cat: '', genre: '', limit: 120 }, series: { cat: '', genre: '', limit: 120 }, fav: {}, search: { q: '' }, ppv: { sport: '' }, guide: { cat: '' }, coll: { id: '', sort: 'release' } };
 
 // Anropas när en spellista har lästs in
 function setGroups(){
@@ -1157,6 +1165,7 @@ function renderView(){
   if (view === 'home') v.innerHTML = homeView();
   else if (view === 'fav') v.innerHTML = favView();
   else if (view === 'ppv') v.innerHTML = ppvView();
+  else if (view === 'coll') v.innerHTML = collView();
   else if (view === 'multi') { stopMulti(); v.innerHTML = multiView(); setTimeout(startMulti, 0); }
   else if (view === 'guide') { v.innerHTML = guideView(); setTimeout(initGuide, 0); }
   else if (view === 'search') { v.innerHTML = searchView(); const s = $('searchInput'); s.value = vstate.search.q; renderSearch(); }
@@ -1175,6 +1184,7 @@ function homeView(){
   if (ppvList.length) setTimeout(loadPpvEpg, 1500);
   html += row('Fortsätt titta', watched);
   html += row('Senast sedda kanaler', watchedLive);
+  html += collTiles([...m, ...s]);
   html += row('Rekommenderat för dig', recommendations());
   html += row('Min lista', favList, 'fav');
   html += row('Nya filmer', sortList(m, 'new'), 'movie|');
@@ -1198,10 +1208,16 @@ const GENRES = [
   ['Romantik','❤️',/roman(ce|tik|tic|tisch)/i], ['Fantasy','🧙',/fantasy|fantasi/i], ['Animerat','🎨',/anim|tecknad|cartoon|anime/i],
   ['Barn & familj','🧸',/\bkids?\b|barn|family|familj|children|kinder/i], ['Dokumentär','📚',/docu|dokument/i], ['Krig','🎖️',/\bwar\b|krig|military|militär/i],
   ['Western','🤠',/western/i], ['Musik','🎵',/music|musik|musical/i], ['Historia','🏛️',/histor|biograf|biopic/i], ['Sport','🏆',/\bsport/i],
-  ['Reality','📺',/reality|dokusåpa/i], ['Svenskt','🇸🇪',/\bsvensk|swedish|\bse[:|]|\bnordic|nordisk/i]
+  ['Reality','📺',/reality|dokusåpa/i], ['Svenskt','🇸🇪',/\bsvensk|swedish|\bse[:|]|\bnordic|nordisk/i],
+  ['Hollywood','⭐',/hollywood|\b(en|us|usa|uk)\s*[|:\-]|\benglish\b|\bamerican|\b(usa|us) (movies|filmer)|blockbuster|box ?office/i]
 ];
 const genreIcon = n => (GENRES.find(g => g[0] === n) || [0, '🎬'])[1];
-function assignGenres(c){ const txt = (c.genre || '') + ' | ' + c.group; c.genres = GENRES.filter(g => g[2].test(txt)).map(g => g[0]); }
+function assignGenres(c){
+  const txt = (c.genre || '') + ' | ' + c.group + ' | ' + (c.name.match(/^\s*[A-Z]{2,3}\s*[|:\-]/) || [''])[0];
+  c.genres = GENRES.filter(g => g[2].test(txt)).map(g => g[0]);
+  assignCollections(c);
+  if (c.colls.length && !c.genres.includes('Hollywood') && !c.colls.every(x => x === 'disney' || x === 'pixar')) c.genres.push('Hollywood'); // stora filmserier räknas som Hollywood
+}
 function genreCounts(list){
   const n = {}; list.forEach(c => (c.genres || []).forEach(g => n[g] = (n[g] || 0) + 1));
   return Object.entries(n).sort((a, b) => b[1] - a[1]);
@@ -1239,6 +1255,7 @@ function typeView(t){
     const items = sortList(inGenre.filter(c => st.cat === '__fav' ? favs.has(c.url) : c.group === st.cat), by);
     return html + (items.length ? grid(items, st.limit) : '<div class="empty" style="padding-top:30px">Inget här ännu.</div>');
   }
+  if (!st.genre) html += collTiles(list);
   const suffix = st.genre ? ' – ' + st.genre.toLowerCase() : '';
   if (inGenre.some(c => c.year)) html += row('Nyast' + suffix, sortList(inGenre.filter(c => c.year), 'year'));
   if (inGenre.some(c => c.added)) html += row('Senast tillagda' + suffix, sortList(inGenre, 'new'));
@@ -1387,6 +1404,7 @@ $('view').addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
   if (t.dataset.openPl) { renderPlRows(); openDialog('plDialog'); return; }
   if (t.dataset.g) { guideClick(t); return; }
+  if (t.dataset.coll) { pushHist(); vstate.coll.id = t.dataset.coll; setView('coll', true); return; }
   if (t.dataset.openmulti) { setView('multi'); return; }
   if (t.dataset.madd) { openMultiPicker(); return; }
   if (t.dataset.mclear) { multi = []; multiAudio = 0; renderView(); return; }
@@ -1425,6 +1443,7 @@ $('view').addEventListener('click', e => {
   }
 });
 $('view').addEventListener('change', e => {
+  if (e.target.id === 'collSort') { vstate.coll.sort = e.target.value; renderView(); $('collSort')?.focus(); return; }
   if (e.target.id === 'catSel') { pushHist(); vstate[view].cat = e.target.value; vstate[view].limit = 120; renderView(); $('catSel')?.focus(); return; }
   if (e.target.id === 'sortSel') { store.set('iptv_sort_' + view, e.target.value); renderView(); $('sortSel')?.focus(); }
 });
@@ -1582,6 +1601,71 @@ $('catList').addEventListener('click', e => {
   setTimeout(() => document.querySelector('.chip.on')?.focus(), 0);
 });
 
+
+
+// ====== SAMLINGAR (filmserier och studior, som på stora streamingtjänster) ======
+// Matchas mot titeln utan språkprefix, år och kvalitet. "exact" = hela titeln måste stämma (för korta/vanliga ord).
+const COLLECTIONS = [
+  { id: 'marvel', name: 'Marvel', sub: 'Avengers, Spider-Man, X-Men', c: ['#c4161c', '#5a0a0d'],
+    re: /\b(avengers|iron ?man|thor|captain america|captain marvel|spider[- ]?man|black panther|guardians of the galaxy|ant[- ]?man|doctor strange|black widow|shang[- ]?chi|eternals|incredible hulk|she[- ]?hulk|x[- ]?men|deadpool|wolverine|venom|fantastic four|thunderbolts|wandavision|hawkeye|daredevil|the marvels|moon knight|ms\.? marvel|secret invasion|agatha|morbius|madame web|kraven|the punisher|jessica jones|luke cage|iron fist|defenders|agents of s ?h ?i ?e ?l ?d|inhumans)\b/,
+    exact: ['loki', 'logan', 'echo', 'thor'] },
+  { id: 'starwars', name: 'Star Wars', sub: 'Skywalker-sagan, Mandalorian', c: ['#111111', '#3a3a3a'],
+    re: /\b(star wars|mandalorian|andor|ahsoka|rogue one|obi[- ]?wan|boba fett|clone wars|bad batch|acolyte|skeleton crew|star wars rebels|solo a star wars)\b/ },
+  { id: 'dc', name: 'DC', sub: 'Batman, Superman, Joker', c: ['#0b5ed7', '#062a66'],
+    re: /\b(batman|superman|man of steel|wonder woman|aquaman|justice league|joker|the flash|shazam|suicide squad|black adam|blue beetle|peacemaker|the penguin|harley quinn|green lantern|watchmen|catwoman|doom patrol|constantine|birds of prey|smallville)\b/,
+    exact: ['arrow', 'titans', 'gotham', 'supergirl', 'the flash'] },
+  { id: 'pixar', name: 'Pixar', sub: 'Toy Story, Bilar, Insidan ut', c: ['#1b9be0', '#0b4f7a'],
+    re: /\b(toy story|finding (nemo|dory)|hitta (nemo|doris)|the incredibles|incredibles|superhjältarna|monsters,? (inc|university)|monsters (inc|university)|ratatouille|wall[- ]?e|inside out|insidan ut|a bug ?s life|ett småkryps liv|lightyear|turning red|elemental|onward|elio)\b/,
+    exact: ['cars', 'cars 2', 'cars 3', 'bilar', 'bilar 2', 'bilar 3', 'up', 'upp', 'coco', 'soul', 'luca', 'brave', 'modig'] },
+  { id: 'disney', name: 'Disney', sub: 'Frost, Vaiana, Lejonkungen', c: ['#1f3b8f', '#0a1640'],
+    exact: ['frost', 'frost 2', 'wish', 'trassel', 'bambi'],
+    re: /\b(frozen|moana|vaiana|encanto|the lion king|lejonkungen|aladdin|little mermaid|lilla sjöjungfrun|beauty and the beast|skönheten och odjuret|tangled|zootopia|zootropolis|mulan|cinderella|askungen|snow white|snövit|pinocchio|peter pan|jungle book|djungelboken|lilo|big hero 6|raya|wreck[- ]?it ralph|röjar[- ]?ralf|hercules|herkules|pocahontas|dumbo|fantasia|mary poppins|pirates of the caribbean|pirates of the carribean|maleficent|cruella|101 dalmatians|101 dalmatiner|the princess and the frog|prinsessan och grodan|strange world)\b/ },
+  { id: 'potter', name: 'Harry Potter', sub: 'Trollkarlsvärlden', c: ['#6b4b1f', '#2a1c0a'], re: /\b(harry potter|fantastic beasts|fantastiska vidunder|hogwarts)\b/ },
+  { id: 'bond', name: 'James Bond', sub: '007', c: ['#2b2b2b', '#7a6327'],
+    re: /\b(james bond|007|dr\.? no|goldfinger|thunderball|moonraker|goldeneye|casino royale|quantum of solace|skyfall|spectre|no time to die|tomorrow never dies|the world is not enough|die another day|octopussy|a view to a kill|licence to kill|the living daylights|for your eyes only|live and let die|the man with the golden gun|the spy who loved me|diamonds are forever|you only live twice|from russia with love|on her majesty)\b/ },
+  { id: 'fast', name: 'Fast & Furious', sub: 'Hela familjen', c: ['#e85d04', '#5a1f00'], re: /\b(fast( and)?( the)? furious|2 fast 2 furious|fast five|furious ?[6-9]|fast x|the fate of the furious|f9|hobbs( and)? shaw|tokyo drift)\b/ },
+  { id: 'jurassic', name: 'Jurassic', sub: 'Park & World', c: ['#2d6a4f', '#0b2a1d'], re: /\b(jurassic (park|world)|the lost world)\b/ },
+  { id: 'mi', name: 'Mission: Impossible', sub: 'Ethan Hunt', c: ['#7f1d1d', '#1f0606'], re: /\bmission ?impossible\b/ },
+  { id: 'lotr', name: 'Sagan om ringen', sub: 'Midgård och Hobbit', c: ['#8a6d2b', '#2a210b'], re: /\b(lord of the rings|sagan om (ringen|de två tornen|konungens återkomst)|the hobbit|hobbit|rings of power|ringens makt|war of the rohirrim)\b/ },
+  { id: 'wick', name: 'John Wick', sub: 'Continental', c: ['#1a1a1a', '#5c0b0b'], re: /\b(john wick|ballerina|the continental)\b/ },
+  { id: 'transformers', name: 'Transformers', sub: 'Autobots', c: ['#264653', '#0d1b21'], re: /\btransformers\b|\bbumblebee\b/ },
+  { id: 'dreamworks', exact: ['sing'], name: 'DreamWorks & Illumination', sub: 'Shrek, Minioner, Kung Fu Panda', c: ['#4c9f38', '#163a10'],
+    re: /\b(shrek|kung fu panda|how to train your dragon|draktränaren|madagascar|trolls|minions|minioner|despicable me|dumma mig|the secret life of pets|husdjurens hemliga liv|sing 2|puss in boots|mästerkatten|the boss baby|baby[- ]?bossen|the croods|familjen croods|the bad guys|super mario|megamind|wild robot|den vilda roboten)\b/ },
+  { id: 'avatar', name: 'Avatar', sub: 'Pandora', c: ['#0077b6', '#03045e'], re: /\bavatar(?! the last airbender)\b/ },
+  { id: 'monsterverse', name: 'Godzilla & Kong', sub: 'MonsterVerse', c: ['#3d405b', '#13141f'], re: /\b(godzilla|king kong|kong skull island)\b|^kong\b/ },
+  { id: 'hunger', name: 'Hunger Games', sub: 'Panem', c: ['#9d0208', '#370617'], re: /\b(hunger games|mockingjay|catching fire|ballad of songbirds)\b/ },
+  { id: 'matrix', name: 'Matrix', sub: 'Neo', c: ['#2b9348', '#081c15'], re: /\bmatrix\b/ },
+  { id: 'startrek', name: 'Star Trek', sub: 'Enterprise', c: ['#1d3557', '#0b132b'], re: /\bstar trek\b/ },
+  { id: 'indy', name: 'Indiana Jones', sub: 'Äventyr', c: ['#9c6644', '#3b2414'], re: /\bindiana jones\b/ },
+  { id: 'rocky', name: 'Rocky & Creed', sub: 'Boxning', c: ['#b5179e', '#3c096c'], re: /\b(rocky|creed)\b/ },
+  { id: 'alien', name: 'Alien & Predator', sub: 'Sci-fi-skräck', c: ['#2f3e46', '#0b0f12'], re: /\b(alien|aliens|alien romulus|prometheus|predator|predators)\b/, exact: ['prey'] },
+  { id: 'apes', name: 'Apornas planet', sub: 'Planet of the Apes', c: ['#7f5539', '#2b1a10'], re: /\bplanet of the apes|apornas planet\b/ }
+];
+const collCore = c => c._core || (c._core = norm(c.name.replace(/^\s*[A-Z]{2,3}\s*[|:\-]\s*/, '').replace(/[\(\[]\s*(19|20)\d{2}\s*[\)\]]/g, '').replace(/\b(4k|uhd|fhd|hd|multi[- ]?sub|sub|dubbed|svenskt tal)\b/gi, '')).replace(/\b(19|20)\d{2}\b$/, '').trim());
+function assignCollections(c){
+  const t = collCore(c);
+  c.colls = COLLECTIONS.filter(k => k.re.test(t) || (k.exact && k.exact.includes(t))).map(k => k.id);
+}
+function collTiles(list){
+  const n = {}; list.forEach(c => (c.colls || []).forEach(id => n[id] = (n[id] || 0) + 1));
+  const tiles = COLLECTIONS.filter(k => n[k.id]);
+  if (!tiles.length) return '';
+  return `<section class="lane"><div class="rowhead"><h3>Samlingar</h3></div><div class="rowscroll">${tiles.map(k =>
+    `<button class="f bt" type="button" data-coll="${k.id}" style="--a:${k.c[0]};--b:${k.c[1]}"><b>${esc(k.name)}</b><small>${esc(k.sub)} · ${n[k.id]}</small></button>`).join('')}</div></section>`;
+}
+const COLL_SORTS = [['release', 'Utgivningsordning'], ['newest', 'Nyast först'], ['pop', 'Populärast'], ['name', 'Namn A–Ö']];
+function collView(){
+  const st = vstate.coll, k = COLLECTIONS.find(x => x.id === st.id); if (!k) return '';
+  const items = [...byType.movie, ...byType.series].filter(c => (c.colls || []).includes(k.id));
+  const by = st.sort || 'release';
+  const sorter = list => by === 'release' ? list.slice().sort((a, b) => (+validYear(a.year) || 9999) - (+validYear(b.year) || 9999) || a.name.localeCompare(b.name, 'sv', { numeric: true }))
+    : by === 'newest' ? sortList(list, 'year') : sortList(list, by);
+  const movies = sorter(items.filter(c => TYPE(c) === 'movie')), series = sorter(items.filter(c => TYPE(c) === 'series'));
+  return `<div class="collhero" style="--a:${k.c[0]};--b:${k.c[1]}"><h1>${esc(k.name)}</h1><div>${esc(k.sub)} · ${items.length} titlar</div></div>
+    <div class="pagehead" style="padding-top:12px"><select class="f" id="collSort" title="Sortera">${COLL_SORTS.map(([v, t]) => `<option value="${v}" ${v === by ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+    ${movies.length ? `<div class="rowhead"><h3>Filmer (${movies.length})</h3></div>${grid(movies, 300)}` : ''}
+    ${series.length ? `<div class="rowhead"><h3>Serier (${series.length})</h3></div>${grid(series, 300)}` : ''}`;
+}
 
 // ====== TV-GUIDE I RUTNÄT (med catch-up) ======
 const PX_MIN = IS_TV ? 5 : 4, G_BACK = 3 * 60, G_FWD = 8 * 60; // 3 h bakåt, 8 h framåt
