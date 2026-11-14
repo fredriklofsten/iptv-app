@@ -19,7 +19,7 @@
   button,.filebtn{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:.6em 1em;font-size:inherit;cursor:pointer;white-space:nowrap;font-family:inherit}
   button.ghost,.filebtn{background:var(--panel);border:1px solid var(--line);color:var(--text)}
   .filebtn input{display:none}
-  .f:focus,.f.kfocus{outline:3px solid var(--focus);outline-offset:2px}
+  .f:focus-visible,.f.kfocus{outline:3px solid var(--focus);outline-offset:2px}
 
   /* Inloggning */
   .center{height:100%;display:flex;align-items:center;justify-content:center;padding:20px}
@@ -76,7 +76,7 @@
   .gprog.past{background:#15161c;color:#8a8f9c}
   .gprog.arch{border-style:dashed;border-color:#6b4e16}
   .gprog.arch::after{content:'⟲';position:absolute;right:6px;top:4px;color:#e5a00d}
-  .gprog:focus{outline:3px solid var(--focus);z-index:2}
+  .gprog:focus-visible{outline:3px solid var(--focus);z-index:2}
   .gnow{position:absolute;top:0;bottom:0;width:2px;background:#e50914;z-index:1;pointer-events:none}
   .gempty{position:absolute;left:8px;top:18px;color:#666;font-size:.8em}
   .mgrid{display:grid;gap:6px;padding:0 4% 20px;grid-template-columns:1fr 1fr}
@@ -97,11 +97,33 @@
   button.bt{flex-shrink:0;width:220px;aspect-ratio:16/9;border-radius:10px;border:2px solid rgba(255,255,255,.12);background:radial-gradient(120% 120% at 30% 20%,var(--a),var(--b));color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:10px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.45);transition:transform .15s,border-color .15s}
   button.bt b{font-size:1.35em;letter-spacing:.02em;text-shadow:0 2px 10px rgba(0,0,0,.6)}
   button.bt small{font-size:.75em;opacity:.85}
-  button.bt:hover,button.bt:focus{transform:scale(1.06);border-color:#fff}
+  button.bt:hover,button.bt:focus-visible{transform:scale(1.06);border-color:#fff}
   body.tv button.bt{width:280px}
   @media (max-width:760px){ button.bt{width:160px} button.bt b{font-size:1.1em} }
   .collhero{padding:90px 4% 26px;background:radial-gradient(120% 140% at 20% 0%,var(--a),var(--b) 70%,#0b0b0f)}
   .collhero h1{margin:0;font-size:2.6em;text-shadow:0 2px 14px rgba(0,0,0,.6)}
+  .filterbtn{margin-left:auto;background:#1d2030;border:1px solid #2b2f40;color:#fff;border-radius:999px;padding:.5em 1.1em;font-weight:600}
+  .filterbtn.on{background:#fff;color:#000}
+  .filterbtn b{background:#e50914;color:#fff;border-radius:999px;padding:0 7px;margin-left:4px;font-size:.85em}
+  .activef{padding-top:0}
+  .activef .chip.on{background:#2b3a5c;color:#fff;border-color:#4f8cff}
+  .sheet{display:flex;flex-direction:column;gap:10px;width:min(720px,100%);max-height:90vh}
+  .sheethead{display:flex;align-items:center;gap:10px}
+  .sheethead h2{flex:1;margin:0}
+  .fsbody{overflow:auto;padding-right:4px}
+  .fsbody h4{margin:16px 0 8px;color:#cfd3dc}
+  .fsbody h4 small{color:var(--mute);font-weight:400}
+  .fchips{display:flex;flex-wrap:wrap;gap:8px}
+  .fchips .chip small{opacity:.7}
+  #fsApply{width:100%;padding:.9em}
+  .nav.mob,.mobsearch{display:none}
+  .menusec{border-top:1px solid #23252e;padding-top:8px;display:flex;flex-direction:column;gap:8px}
+  .menusec h4{margin:4px 0 2px;color:var(--mute);font-size:.8em;text-transform:uppercase;letter-spacing:.06em}
+  .menusec button.ghost{text-align:left}
+  .moregrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .morebtn{display:flex;flex-direction:column;align-items:center;gap:6px;background:#1d2030;border:1px solid #2b2f40;color:#fff;border-radius:14px;padding:16px 6px;font-size:.9em}
+  .morebtn span{font-size:1.8em}
+  @keyframes sheetup{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
   #topnav.solid{background:#0b0b0f;box-shadow:0 2px 12px rgba(0,0,0,.5)}
   .brand{font-size:1.35em;letter-spacing:.04em;color:var(--focus);white-space:nowrap}
   .brand b{color:#fff}
@@ -153,12 +175,13 @@
   .ctitle{position:absolute;left:0;right:0;bottom:0;padding:22px 8px 7px;font-size:.82em;font-weight:600;background:linear-gradient(0deg,rgba(0,0,0,.9),rgba(0,0,0,0));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   button.card .badge{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.7);font-size:.72em;padding:2px 6px;border-radius:4px}
   button.card .num{position:absolute;top:6px;left:6px;font-size:.75em;color:#aab}
+  button.card .q4k{position:absolute;bottom:30px;right:6px;background:#e5a00d;color:#000;font-weight:800;font-size:.62em;padding:1px 5px;border-radius:3px}
   button.card .yr{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.7);font-size:.72em;padding:2px 6px;border-radius:4px;font-variant-numeric:tabular-nums}
   button.card.isfav::after{content:'★';position:absolute;top:4px;right:7px;color:var(--focus);text-shadow:0 1px 4px #000}
   button.card.isfav .yr{top:26px}
   button.card .seen{position:absolute;left:0;bottom:0;height:3px;width:100%;background:#e5a00d}
-  button.card:hover,button.card:focus{transform:scale(1.07);z-index:2;box-shadow:0 10px 30px rgba(0,0,0,.7)}
-  button.card.f:focus{outline:3px solid #fff;outline-offset:0}
+  button.card:hover,button.card:focus-visible{transform:scale(1.07);z-index:2;box-shadow:0 10px 30px rgba(0,0,0,.7)}
+  button.card.f:focus-visible{outline:3px solid #fff;outline-offset:0}
   .loadmore{display:block;margin:0 auto 30px}
   .empty{padding:120px 4% 40px;color:var(--mute);text-align:center}
   .empty button{margin-top:16px}
@@ -209,7 +232,7 @@
   .proflist{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin-bottom:30px}
   .prof{background:none;border:0;color:#ccc;display:flex;flex-direction:column;align-items:center;gap:10px;padding:6px}
   .prof .av{width:120px;height:120px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:64px;background:linear-gradient(135deg,#2b5876,#4e4376);border:3px solid transparent}
-  .prof:focus .av,.prof:hover .av{border-color:#fff}
+  .prof:focus-visible .av,.prof:hover .av{border-color:#fff}
   .prof.kids .av{background:linear-gradient(135deg,#f7971e,#ffd200)}
   .prof.add .av{background:#222;font-size:50px;color:#888}
   .prof.edit .av::after{content:'✎';position:absolute;font-size:28px}
@@ -246,6 +269,45 @@
     .pagehead select{margin-left:0;width:100%}
     .dinfo{padding:16px}.dinfo img{width:90px}.dbody{padding:4px 16px 20px}
     .toast{bottom:84px}
+    /* ---- Mobil: tydlig navigering ---- */
+    #topnav{padding:calc(8px + env(safe-area-inset-top)) 4% 10px;background:linear-gradient(180deg,rgba(11,11,15,.96),rgba(11,11,15,.75) 70%,rgba(11,11,15,0))}
+    .brand{font-size:1.15em;flex:1}
+    .navtabs{flex:none}
+    .nav[data-view=fav],.nav[data-view=guide],.nav[data-view=ppv],.nav[data-view=search]{display:none}
+    .nav.mob{display:flex}
+    .mobsearch{display:inline-flex}
+    .iconbtn{min-width:42px;min-height:42px;justify-content:center;align-items:center}
+    .navtabs{padding:6px 2px calc(6px + env(safe-area-inset-bottom));box-shadow:0 -6px 20px rgba(0,0,0,.4)}
+    .nav{font-size:.7em;gap:2px;min-height:52px;justify-content:center}
+    .nav span{font-size:1.45em}
+    .nav.on span{transform:scale(1.08)}
+    /* Sidhuvud och knappar */
+    .pagehead{padding:calc(66px + env(safe-area-inset-top)) 4% 4px;flex-wrap:nowrap}
+    .pagehead h2{font-size:1.55em}
+    .pagehead select{width:auto;max-width:55%}
+    .chips{gap:6px;padding:6px 4% 10px}
+    .chip{font-size:.88em;padding:.5em .95em;min-height:38px}
+    .rowhead h3{font-size:1.05em}
+    .lane{margin:2px 0 12px}
+    .hinfo{padding:0 5% 8%}
+    .hbtns button{flex:1}
+    button.card.poster{width:30vw;max-width:130px}
+    button.card.wide{width:44vw;max-width:190px}
+    .grid{grid-template-columns:repeat(3,1fr);gap:8px}
+    .ctitle{font-size:.75em}
+    /* Rutor som bottenark */
+    .overlay:not(.player):not(#profileDialog):not(#detail){align-items:flex-end;padding:0}
+    .overlay:not(.player):not(#profileDialog):not(#detail) > .card{width:100%;max-width:none!important;border-radius:18px 18px 0 0;max-height:90vh;overflow:auto;padding:16px 16px calc(16px + env(safe-area-inset-bottom));animation:sheetup .22s ease}
+    .sheet{max-height:90vh}
+    .moregrid{grid-template-columns:repeat(3,1fr)}
+    /* Detaljsidan i helskärm */
+    #detail{padding:0;align-items:stretch}
+    #detail .detail{width:100%;max-height:none;height:100%;border-radius:0}
+    .dhero{min-height:300px}
+    .dclose{top:calc(12px + env(safe-area-inset-top));width:2.8em;height:2.8em}
+    .dbtns button{flex:1 1 40%}
+    .dinfo{flex-direction:column;align-items:flex-start}
+    .dinfo img{display:none}
   }
 
   /* Dialoger */
@@ -304,7 +366,9 @@
       <button class="f nav hidden" type="button" data-view="ppv"><span>🥊</span>PPV</button>
       <button class="f nav" type="button" data-view="fav"><span>★</span>Min lista</button>
       <button class="f nav" type="button" data-view="search"><span>🔍</span>Sök</button>
+      <button class="f nav mob" type="button" data-view="more"><span>☰</span>Mer</button>
     </div>
+    <button class="f iconbtn mobsearch" type="button" id="searchBtn" title="Sök">🔍</button>
     <button class="f iconbtn" type="button" id="menuBtn" title="Meny">☰</button>
   </nav>
   <div id="ptr" class="ptr"><span id="ptrIcon">↓</span> <span id="ptrText">Dra för att uppdatera</span></div>
@@ -476,6 +540,23 @@
   </div>
 </div>
 
+<!-- Filterpanel -->
+<div id="filterSheet" class="overlay hidden">
+  <div class="card sheet">
+    <div class="sheethead"><h2>Filter</h2><button class="f ghost" type="button" id="fsReset">Rensa</button><button class="f iconbtn" type="button" data-close>✕</button></div>
+    <div id="fsBody" class="fsbody"></div>
+    <button class="f play" type="button" id="fsApply">Visa</button>
+  </div>
+</div>
+
+<!-- Mer (mobil) -->
+<div id="moreSheet" class="overlay hidden">
+  <div class="card sheet">
+    <div class="sheethead"><h2>Mer</h2><button class="f iconbtn" type="button" data-close>✕</button></div>
+    <div id="moreList" class="moregrid"></div>
+  </div>
+</div>
+
 <!-- Välj TV -->
 <div id="castDialog" class="overlay hidden">
   <div class="card">
@@ -510,19 +591,21 @@
 <!-- Meny -->
 <div id="menuDialog" class="overlay hidden">
   <div class="card">
-    <h2>Meny</h2>
-    <div class="msg">Spellista</div>
-    <select class="f" id="plSelect"></select>
+    <div class="sheethead"><h2>Inställningar</h2><button class="f iconbtn" type="button" data-close>✕</button></div>
     <button class="f hidden" type="button" id="menuUpd">⬆ Uppdatera</button>
-    <button class="f ghost" type="button" id="plManageBtn">Hantera spellistor</button>
-    <button class="f ghost" type="button" id="plRefresh">↻ Uppdatera listan nu</button>
-    <button class="f ghost" type="button" id="profSwitch">👤 Byt profil</button>
-    <button class="f ghost" type="button" id="pinBtn">🔒 Barnlås (PIN)</button>
-    <button class="f ghost" type="button" id="adultBtn">🔞 Visa vuxeninnehåll</button>
-    <button class="f ghost" type="button" id="pairBtn">Koppla TV</button>
-    <button class="f ghost" type="button" id="logoutBtn">Logga ut</button>
-    <div class="msg" id="appVersion"></div>
-    <button class="f" type="button" data-close>Stäng</button>
+    <div class="menusec"><h4>Spellista</h4>
+      <select class="f" id="plSelect"></select>
+      <button class="f ghost" type="button" id="plManageBtn">📋 Hantera spellistor</button>
+      <button class="f ghost" type="button" id="plRefresh">↻ Uppdatera listan nu</button></div>
+    <div class="menusec"><h4>Profil och familj</h4>
+      <button class="f ghost" type="button" id="profSwitch">👤 Byt profil</button>
+      <button class="f ghost" type="button" id="pinBtn">🔒 Barnlås (PIN)</button>
+      <button class="f ghost" type="button" id="adultBtn">🔞 Visa vuxeninnehåll</button></div>
+    <div class="menusec"><h4>TV och enheter</h4>
+      <button class="f ghost" type="button" id="pairBtn">📺 Koppla en TV</button></div>
+    <div class="menusec"><h4>Konto</h4>
+      <button class="f ghost" type="button" id="logoutBtn">↩ Logga ut</button>
+      <div class="msg" id="appVersion"></div></div>
   </div>
 </div>
 
@@ -1064,8 +1147,22 @@ const fmtTime = t => { t = Math.floor(t); const h = Math.floor(t / 3600), m = Ma
 function remember(c){ hist[c.url] = Date.now(); store.set(pk('hist'), hist); pushSync(); }
 
 const TYPE = c => c.type || 'live';
+// Visningsnamn utan leverantörens prefix ("EN |", "SE:", "NC -"), årtal och kvalitetsmärkning – året visas i hörnet
+function title(c){
+  if (c._t) return c._t;
+  let t = String(c.name || '');
+  if (TYPE(c) !== 'live') {
+    for (let k = 0; k < 2; k++) t = t.replace(/^\s*(?:[A-Z]{2,4}|4K|VOD)\s*[|:\-–]\s*/, '');
+    t = t
+      .replace(/\s*[\(\[]\s*(19|20)\d{2}\s*[\)\]]/g, '')
+      .replace(/\s*[\-–|]\s*(19|20)\d{2}\s*(?=$|[\-–|\[(])/g, '')
+      .replace(/\s*[\[(]?\b(4k|uhd|fhd|hd|1080p|720p|2160p|multi[- ]?sub|svensk text|swe ?sub|subbed|dubbed)\b[\])]?/gi, '')
+      .replace(/\s+(19|20)\d{2}\s*$/, '').replace(/\s*[\-–|:]\s*$/, '').trim();
+  }
+  return c._t = t || c.name;
+}
 let view = 'home', byType = { live: [], movie: [], series: [] }, idxOf = new Map();
-const vstate = { live: { cat: '', limit: 200 }, movie: { cat: '', genre: '', limit: 120 }, series: { cat: '', genre: '', limit: 120 }, fav: {}, search: { q: '' }, ppv: { sport: '' }, guide: { cat: '' }, coll: { id: '', sort: 'release' } };
+const vstate = { live: { cat: '', limit: 200 }, movie: { cat: '', limit: 120, f: newFilter('movie') }, series: { cat: '', limit: 120, f: newFilter('series') }, fav: {}, search: { q: '' }, ppv: { sport: '' }, guide: { cat: '' }, coll: { id: '', sort: 'release' } };
 
 // Anropas när en spellista har lästs in
 function setGroups(){
@@ -1081,7 +1178,7 @@ function setGroups(){
   if (view === 'guide' && !curXt) view = 'home';
   if (view === 'ppv' && !ppvList.length) view = 'home';
   if (byType[view] && !byType[view].length) view = 'home';
-  ['live','movie','series'].forEach(t => { vstate[t].cat = ''; vstate[t].genre = ''; });
+  vstate.live.cat = ''; ['movie','series'].forEach(t => { const sort = vstate[t].f?.sort; vstate[t].f = newFilter(t); if (sort) vstate[t].f.sort = sort; });
   [...byType.movie, ...byType.series].forEach(assignGenres);
 }
 // Ritar om den aktuella vyn
@@ -1116,12 +1213,13 @@ function metaLine(c){
 
 function card(c){
   const live = TYPE(c) === 'live';
-  return `<button class="f card ${live ? 'wide' : 'poster'} ${favs.has(c.url) ? 'isfav' : ''}" type="button" data-i="${idxOf.get(c)}" title="${esc(c.name)}">
+  return `<button class="f card ${live ? 'wide' : 'poster'} ${favs.has(c.url) ? 'isfav' : ''}" type="button" data-i="${idxOf.get(c)}" title="${esc(title(c))}">
     ${c.logo ? `<img src="${esc(c.logo)}" loading="lazy" alt="" onerror="this.remove()">` : ''}
     ${live && c.num ? `<span class="num">${c.num}</span>` : ''}
     ${!live && c.rating ? `<span class="badge">★ ${fmtRating(c.rating)}</span>` : ''}
     ${!live && c.year ? `<span class="yr">${esc(c.year)}</span>` : ''}
-    <span class="ctitle">${esc(c.name)}</span>
+    ${!live && /\b(4k|uhd|2160p)\b/i.test(c.name) ? '<span class="q4k">4K</span>' : ''}
+    <span class="ctitle">${esc(title(c))}</span>
     ${!live && (progress(c) || done[c.url]) ? `<span class="seen" style="width:${done[c.url] && !progress(c) ? 100 : progress(c)}%"></span>` : ''}
   </button>`;
 }
@@ -1138,7 +1236,7 @@ function hero(c){
   if (!c) return '';
   const i = idxOf.get(c), bg = c.logo ? `style="background-image:url('${esc(cssUrl(c.logo))}')"` : '';
   return `<div class="hero"><div class="hbg" ${bg}></div>${c.logo ? `<img class="hposter" src="${esc(c.logo)}" alt="" onerror="this.remove()">` : ''}<div class="hgrad"></div>
-    <div class="hinfo"><h1>${esc(c.name)}</h1><div class="hmeta">${metaLine(c)}</div>
+    <div class="hinfo"><h1>${esc(title(c))}</h1><div class="hmeta">${metaLine(c)}</div>
     <div class="hbtns"><button class="f play" type="button" data-play="${i}">▶ Spela</button><button class="f ghost" type="button" data-info="${i}">ⓘ Mer info</button></div></div></div>`;
 }
 function pickHero(list){
@@ -1155,7 +1253,7 @@ function categories(list){
 
 function renderView(){
   if (view !== 'multi') stopMulti();
-  document.querySelectorAll('.nav').forEach(b => b.classList.toggle('on', b.dataset.view === view));
+  document.querySelectorAll('.nav').forEach(b => b.classList.toggle('on', b.dataset.view === view || (b.dataset.view === 'more' && ['guide','ppv','fav','multi','search','coll'].includes(view))));
   const v = $('view');
   if (!channels.length) {
     v.innerHTML = `<div class="empty"><h2>Välkommen!</h2><p>Lägg till en spellista, en Xtream-inloggning eller gratiskanaler för att komma igång.</p>
@@ -1186,17 +1284,16 @@ function homeView(){
   html += row('Senast sedda kanaler', watchedLive);
   html += collTiles([...m, ...s]);
   html += row('Rekommenderat för dig', recommendations());
-  html += row('Min lista', favList, 'fav');
-  html += row('Nya filmer', sortList(m, 'new'), 'movie|');
-  if (m.some(c => c.year)) html += row('Nyaste filmerna (utgivningsår)', sortList(m.filter(c => c.year), 'year'), 'movie|');
+  if (m.some(c => c.year)) html += row('Nyheter – filmer', sortList(m.filter(c => c.year), 'year'), 'movie|');
+  html += row('Senast tillagda filmer', sortList(m, 'new'), 'movie|');
   if (m.some(c => c.rating)) html += row('Populära filmer', sortList(m, 'pop'), 'movie|');
-  html += row('Nya serier', sortList(s, 'new'), 'series|');
+  html += row('Nya serier', sortList(s, s.some(c => c.year) ? 'year' : 'new'), 'series|');
   if (s.some(c => c.rating)) html += row('Populära serier', sortList(s, 'pop'), 'series|');
+  if (m.some(c => langOf(c).includes('svtext'))) html += row('🇸🇪 Filmer med svensk text', sortList(m.filter(c => langOf(c).includes('svtext')), 'new'), 'movie|l:svtext');
   html += row('Live-TV', sortList(l, 'num'), 'live|');
-  genreCounts(m).slice(0, 6).forEach(([g]) => html += row(genreIcon(g) + ' ' + g, sortList(m.filter(c => c.genres.includes(g)), 'new'), 'movie|g:' + g));
-  genreCounts(s).slice(0, 3).forEach(([g]) => html += row(genreIcon(g) + ' ' + g + ' – serier', sortList(s.filter(c => c.genres.includes(g)), 'new'), 'series|g:' + g));
+  html += row('Min lista', favList, 'fav');
+  genreCounts(m).filter(([g]) => g !== 'Svenskt').slice(0, 4).forEach(([g]) => html += row(genreIcon(g) + ' ' + g, sortList(m.filter(c => c.genres.includes(g)), 'new'), 'movie|g:' + g));
   if (!genreCounts(m).length) categories(m).slice(0, 6).forEach(([g]) => html += row('Filmer: ' + g, sortList(m.filter(c => c.group === g), 'new'), 'movie|' + g));
-  categories(l).slice(0, 4).forEach(([g]) => html += row('Kanaler: ' + g, sortList(l.filter(c => c.group === g), 'num'), 'live|' + g));
   return html;
 }
 
@@ -1238,38 +1335,117 @@ function typeView(t){
     return html + (items.length ? grid(items, st.limit, true) : '<div class="empty" style="padding-top:30px">Inget här ännu.</div>');
   }
 
-  // Filmer och serier: genrer som knappar, leverantörens kategorier i en lista
+  // Filmer och serier: snabbfilter + filterpanel med flerval
+  const f = st.f, active = filterCount(f), word = t === 'movie' ? 'filmer' : 'serier';
   const genres = genreCounts(list);
-  // En enda bläddringsrad: Alla, Min lista, genrer och sist leverantörens kategorier
-  const catLabel = st.cat && st.cat !== '__fav' ? st.cat : '';
-  let html = `<div class="pagehead"><h2>${title}${st.genre ? ' · ' + genreIcon(st.genre) + ' ' + esc(st.genre) : catLabel ? ' · ' + esc(catLabel) : ''}</h2>${sortSel}</div>
-    <div class="chips"><button class="f chip ${!st.genre && !st.cat ? 'on' : ''}" type="button" data-genre="">Alla</button>
-    <button class="f chip ${st.cat === '__fav' ? 'on' : ''}" type="button" data-cat="__fav">★ Min lista</button>
-    ${genres.map(([g, n]) => `<button class="f chip ${st.genre === g ? 'on' : ''}" type="button" data-genre="${esc(g)}">${genreIcon(g)} ${esc(g)} <small>${n}</small></button>`).join('')}
-    ${cats.length ? `<button class="f chip ${catLabel ? 'on' : ''}" type="button" data-catpick="1">📁 ${catLabel ? esc(catLabel) + ' ✕' : 'Fler kategorier…'}</button>` : ''}</div>`;
-
-  const inGenre = list.filter(c => !st.genre || (c.genres || []).includes(st.genre));
-  const word = t === 'movie' ? 'filmer' : 'serier';
-
-  if (st.cat) {
-    const items = sortList(inGenre.filter(c => st.cat === '__fav' ? favs.has(c.url) : c.group === st.cat), by);
-    return html + (items.length ? grid(items, st.limit) : '<div class="empty" style="padding-top:30px">Inget här ännu.</div>');
+  const quick = genres.filter(([g]) => g !== 'Svenskt').slice(0, 6).map(([g]) => g);
+  const hasSv = list.some(c => langOf(c).includes('svtext'));
+  let html = `<div class="pagehead"><h2>${title}</h2><button class="f filterbtn ${active ? 'on' : ''}" type="button" data-openfilter="1">⚙ Filter${active ? ` <b>${active}</b>` : ''}</button></div>
+    <div class="chips">
+      <button class="f chip ${!active ? 'on' : ''}" type="button" data-fclear="1">Alla</button>
+      ${hasSv ? `<button class="f chip ${f.lang.includes('svtext') ? 'on' : ''}" type="button" data-ftog="lang|svtext">🇸🇪 Svensk text</button>` : ''}
+      <button class="f chip ${f.show.includes('fav') ? 'on' : ''}" type="button" data-ftog="show|fav">★ Min lista</button>
+      ${quick.map(g => `<button class="f chip ${f.genres.includes(g) ? 'on' : ''}" type="button" data-ftog="genres|${esc(g)}">${genreIcon(g)} ${esc(g)}</button>`).join('')}
+      <button class="f chip" type="button" data-openfilter="1">Fler filter…</button>
+    </div>`;
+  if (active) {
+    // Aktiva filter som går att ta bort ett och ett
+    html += `<div class="chips activef">${activeChips(f).map(([k, v, label]) => `<button class="f chip on" type="button" data-ftog="${k}|${esc(v)}">${esc(label)} ✕</button>`).join('')}
+      <button class="f chip" type="button" data-fclear="1">Rensa alla</button></div>`;
+    const items = sortList(applyFilters(list, f), f.sort);
+    const sortName = (SORTS[t].find(([v]) => v === f.sort) || [0, ''])[1].toLowerCase();
+    html += `<div class="rowhead" style="margin-top:4px"><h3>${items.length} ${word} · ${sortName}</h3></div>`;
+    return html + (items.length ? grid(items, st.limit) : `<div class="empty" style="padding-top:30px">Inga ${word} matchar filtren.<br><button class="f ghost" type="button" data-fclear="1">Rensa filter</button></div>`);
   }
-  if (!st.genre) html += collTiles(list);
-  const suffix = st.genre ? ' – ' + st.genre.toLowerCase() : '';
-  if (inGenre.some(c => c.year)) html += row('Nyast' + suffix, sortList(inGenre.filter(c => c.year), 'year'));
-  if (inGenre.some(c => c.added)) html += row('Senast tillagda' + suffix, sortList(inGenre, 'new'));
-  if (inGenre.some(c => c.rating)) html += row('Populärast' + suffix, sortList(inGenre, 'pop'));
-  if (!st.genre) {
-    // En rad per genre, sedan leverantörens kategorier
-    genres.forEach(([g]) => html += row(genreIcon(g) + ' ' + g, sortList(list.filter(c => c.genres.includes(g)), by), t + '|g:' + g));
-    if (!genres.length) categories(list).slice(0, 15).forEach(([g]) => html += row(g, sortList(list.filter(c => c.group === g), by), t + '|' + g));
-    return html;
-  }
-  const sortName = (SORTS[t].find(([v]) => v === by) || [0, ''])[1].toLowerCase();
-  html += `<div class="rowhead" style="margin-top:8px"><h3>Alla ${word} – ${sortName}</h3></div>`;
-  return html + grid(sortList(inGenre, by), st.limit);
+  // Inga filter: bläddra i rader
+  html += collTiles(list);
+  if (list.some(c => c.year)) html += row('Nyheter', sortList(list.filter(c => c.year), 'year'));
+  if (list.some(c => c.added)) html += row('Senast tillagda', sortList(list, 'new'));
+  if (list.some(c => c.rating)) html += row('Populärast', sortList(list, 'pop'));
+  if (hasSv) html += row('🇸🇪 Med svensk text', sortList(list.filter(c => langOf(c).includes('svtext')), 'new'), t + '|l:svtext');
+  genres.forEach(([g]) => html += row(genreIcon(g) + ' ' + g, sortList(list.filter(c => c.genres.includes(g)), 'new'), t + '|g:' + g));
+  if (!genres.length) categories(list).slice(0, 15).forEach(([g]) => html += row(g, sortList(list.filter(c => c.group === g), 'new'), t + '|' + g));
+  return html;
 }
+
+// ====== FILTER ======
+function newFilter(t){ let sort = 'new'; try { sort = JSON.parse(localStorage.getItem('iptv_sort_' + t)) || 'new'; } catch(_) {} if (!['new','year','pop','name'].includes(sort)) sort = 'new'; return { sort, lang: [], genres: [], dec: [], rating: 0, qual: [], show: [], cat: '' }; }
+// Språk och text läses ur titeln och kategorin (leverantörerna anger det där)
+const LANGS = [
+  ['svtext', '🇸🇪 Svensk text', c => /svensk text|sv(e|enska)?[ ._-]?sub|swe?[ ._-]?sub|\bse[ ._-]?sub|undertext|multi[ -]?sub|nordic sub/i.test(c.name + ' ' + c.group) || /^\s*SE\s*[|:\-]/.test(c.name) || /^\s*(SE|SWE)\b|sverige|svensk|sweden/i.test(c.group)],
+  ['svtal', '🗣️ Svenskt tal', c => /svenskt tal|swedish dub|sv[ ._-]?dub|dubbad|svensk dubb|\bSE[ ._-]?DUB\b/i.test(c.name + ' ' + c.group)],
+  ['en', '🇬🇧 Engelska', c => /^\s*(EN|US|UK)\s*[|:\-]/.test(c.name) || /english|\b(EN|US|UK)\b/.test(c.group)],
+  ['nordic', '🌍 Nordiskt', c => /^\s*(NO|DK|FI|NC|NORDIC)\s*[|:\-]/i.test(c.name) || /nordic|nordisk|norsk|norway|dansk|denmark|finsk|finland/i.test(c.group)]
+];
+function langOf(c){ return c._lang || (c._lang = LANGS.filter(l => l[2](c)).map(l => l[0])); }
+const DECADES = [['2020', '2020-tal', 2020, 2099], ['2010', '2010-tal', 2010, 2019], ['2000', '2000-tal', 2000, 2009], ['1990', '90-tal', 1990, 1999], ['old', 'Äldre', 0, 1989]];
+const QUAL = [['4k', '4K / UHD', /\b(4k|uhd|2160p)\b/i], ['hd', 'HD', /\b(fhd|hd|1080p|720p)\b/i]];
+const SHOW = [['unseen', 'Inte sedda'], ['started', 'Påbörjade'], ['fav', '★ Min lista']];
+function filterCount(f){ return f.lang.length + f.genres.length + f.dec.length + (f.rating ? 1 : 0) + f.qual.length + f.show.length + (f.cat ? 1 : 0); }
+function applyFilters(list, f){
+  return list.filter(c => {
+    if (f.cat && c.group !== f.cat) return false;
+    if (f.lang.length && !f.lang.some(l => langOf(c).includes(l))) return false;
+    if (f.genres.length && !f.genres.some(g => (c.genres || []).includes(g))) return false;
+    if (f.dec.length) { const y = +validYear(c.year); if (!y || !f.dec.some(d => { const x = DECADES.find(z => z[0] === d); return y >= x[2] && y <= x[3]; })) return false; }
+    if (f.rating && !((c.rating || 0) >= f.rating)) return false;
+    if (f.qual.length && !f.qual.some(q => QUAL.find(z => z[0] === q)[2].test(c.name + ' ' + c.group))) return false;
+    if (f.show.length && !f.show.some(sw => sw === 'fav' ? favs.has(c.url) : sw === 'started' ? !!pos[c.url] : !done[c.url] && !pos[c.url] && !hist[c.url])) return false;
+    return true;
+  });
+}
+function activeChips(f){
+  const out = [];
+  f.lang.forEach(v => out.push(['lang', v, LANGS.find(l => l[0] === v)[1]]));
+  f.genres.forEach(v => out.push(['genres', v, genreIcon(v) + ' ' + v]));
+  f.dec.forEach(v => out.push(['dec', v, DECADES.find(d => d[0] === v)[1]]));
+  if (f.rating) out.push(['rating', String(f.rating), '★ ' + f.rating + '+']);
+  f.qual.forEach(v => out.push(['qual', v, QUAL.find(q => q[0] === v)[1]]));
+  f.show.forEach(v => out.push(['show', v, SHOW.find(q => q[0] === v)[1]]));
+  if (f.cat) out.push(['cat', f.cat, '📁 ' + f.cat]);
+  return out;
+}
+function toggleFilter(f, k, v){
+  if (k === 'rating') f.rating = f.rating === +v ? 0 : +v;
+  else if (k === 'cat') f.cat = f.cat === v ? '' : v;
+  else if (k === 'sort') f.sort = v;
+  else { const a = f[k], i = a.indexOf(v); i > -1 ? a.splice(i, 1) : a.push(v); }
+}
+// Filterpanelen (bottenark på mobil)
+let fDraft = null;
+function openFilterSheet(){
+  fDraft = JSON.parse(JSON.stringify(vstate[view].f));
+  renderFilterSheet(); openDialog('filterSheet');
+}
+function renderFilterSheet(){
+  const t = view, list = byType[t], f = fDraft;
+  const n = applyFilters(list, f).length;
+  const chip = (k, v, label, on) => `<button class="f chip ${on ? 'on' : ''}" type="button" data-fk="${k}" data-fv="${esc(v)}">${label}</button>`;
+  const cats = categories(list).sort((a, b) => a[0].localeCompare(b[0], 'sv'));
+  const langs = LANGS.filter(l => list.some(c => langOf(c).includes(l[0])));
+  $('fsBody').innerHTML = `
+    <h4>Sortera</h4><div class="fchips">${SORTS[t].map(([v, l]) => chip('sort', v, l, f.sort === v)).join('')}</div>
+    ${langs.length ? `<h4>Språk och text</h4><div class="fchips">${langs.map(([v, l]) => chip('lang', v, l, f.lang.includes(v))).join('')}</div>` : ''}
+    <h4>Genre <small>(välj flera)</small></h4><div class="fchips">${genreCounts(list).map(([g, c]) => chip('genres', g, `${genreIcon(g)} ${esc(g)} <small>${c}</small>`, f.genres.includes(g))).join('')}</div>
+    <h4>Utgivningsår</h4><div class="fchips">${DECADES.map(([v, l]) => chip('dec', v, l, f.dec.includes(v))).join('')}</div>
+    ${list.some(c => c.rating) ? `<h4>Betyg</h4><div class="fchips">${[6, 7, 8].map(r => chip('rating', r, '★ ' + r + '+', f.rating === r)).join('')}</div>` : ''}
+    ${list.some(c => QUAL.some(q => q[2].test(c.name + ' ' + c.group))) ? `<h4>Bildkvalitet</h4><div class="fchips">${QUAL.map(([v, l]) => chip('qual', v, l, f.qual.includes(v))).join('')}</div>` : ''}
+    <h4>Visa</h4><div class="fchips">${SHOW.map(([v, l]) => chip('show', v, l, f.show.includes(v))).join('')}</div>
+    ${cats.length > 1 ? `<h4>Leverantörens kategori</h4><select class="f" id="fsCat"><option value="">Alla kategorier</option>${cats.map(([g, c]) => `<option value="${esc(g)}" ${f.cat === g ? 'selected' : ''}>${esc(g)} (${c})</option>`).join('')}</select>` : ''}`;
+  $('fsApply').textContent = `Visa ${n} ${t === 'movie' ? 'filmer' : 'serier'}`;
+}
+$('fsBody').addEventListener('click', e => {
+  const b = e.target.closest('[data-fk]'); if (!b) return;
+  toggleFilter(fDraft, b.dataset.fk, b.dataset.fv);
+  const y = $('fsBody').scrollTop; renderFilterSheet(); $('fsBody').scrollTop = y;
+  setTimeout(() => $('fsBody').querySelector(`[data-fk="${b.dataset.fk}"][data-fv="${CSS.escape(b.dataset.fv)}"]`)?.focus(), 0);
+});
+$('fsBody').addEventListener('change', e => { if (e.target.id === 'fsCat') { fDraft.cat = e.target.value; renderFilterSheet(); } });
+$('fsReset').onclick = () => { const sort = fDraft.sort; fDraft = newFilter(view); fDraft.sort = sort; renderFilterSheet(); };
+$('fsApply').onclick = () => {
+  pushHist(); vstate[view].f = fDraft; vstate[view].limit = 120; store.set('iptv_sort_' + view, fDraft.sort);
+  closeDialogs(); renderView(); $('main').scrollTop = 0;
+};
 
 function favView(){
   const list = channels.filter(c => favs.has(c.url));
@@ -1394,7 +1570,20 @@ function setView(v, noHist){
   view = v; renderView(); $('main').scrollTop = 0;
   if (v === 'search') setTimeout(() => $('searchInput')?.focus(), 50);
 }
-document.querySelectorAll('.nav').forEach(b => b.onclick = () => setView(b.dataset.view));
+document.querySelectorAll('.nav').forEach(b => b.onclick = () => b.dataset.view === 'more' ? openMore() : setView(b.dataset.view));
+$('searchBtn').onclick = () => setView('search');
+function openMore(){
+  const has = v => !document.querySelector(`.nav[data-view=${v}]`)?.classList.contains('hidden');
+  const items = [['guide', '🗓️', 'TV-guide'], ['ppv', '🥊', 'PPV & sport'], ['fav', '★', 'Min lista'], ['multi', '⊞', 'Flera samtidigt'], ['search', '🔍', 'Sök'], ['__menu', '⚙️', 'Inställningar']]
+    .filter(([v]) => v.startsWith('__') || v === 'multi' || v === 'search' || has(v));
+  $('moreList').innerHTML = items.map(([v, i, t]) => `<button class="f morebtn" type="button" data-more-go="${v}"><span>${i}</span>${t}</button>`).join('');
+  openDialog('moreSheet');
+}
+$('moreList').addEventListener('click', e => {
+  const b = e.target.closest('[data-more-go]'); if (!b) return;
+  const v = b.dataset.moreGo; closeDialogs();
+  if (v === '__menu') openDialog('menuDialog'); else setView(v);
+});
 $('main').addEventListener('scroll', () => $('topnav').classList.toggle('solid', $('main').scrollTop > 40), { passive: true });
 $('menuBtn').onclick = () => openDialog('menuDialog');
 
@@ -1417,9 +1606,13 @@ $('view').addEventListener('click', e => {
   if (t.dataset.more !== undefined) {
     const [type, cat] = t.dataset.more.split('|');
     if (type === 'fav') return setView('fav');
-    if ((cat || '').startsWith('g:')) { vstate[type].genre = cat.slice(2); vstate[type].cat = ''; } else { vstate[type].cat = cat || ''; vstate[type].genre = ''; }
+    if (type === 'live') vstate.live.cat = cat || '';
+    else { const nf = newFilter(type); nf.sort = vstate[type].f.sort; if ((cat || '').startsWith('g:')) nf.genres = [cat.slice(2)]; else if ((cat || '').startsWith('l:')) nf.lang = [cat.slice(2)]; else if (cat) nf.cat = cat; vstate[type].f = nf; }
     setView(type); return;
   }
+  if (t.dataset.openfilter) { openFilterSheet(); return; }
+  if (t.dataset.fclear) { pushHist(); const sort = vstate[view].f.sort; vstate[view].f = newFilter(view); vstate[view].f.sort = sort; renderView(); return; }
+  if (t.dataset.ftog) { pushHist(); const [k, ...rest] = t.dataset.ftog.split('|'); toggleFilter(vstate[view].f, k, rest.join('|')); vstate[view].limit = 120; const y = $('main').scrollTop; renderView(); $('main').scrollTop = Math.min(y, 300); return; }
   if (t.dataset.catpick) {
     const st = vstate[view];
     if (st.cat && st.cat !== '__fav') { pushHist(); st.cat = ''; renderView(); return; }
@@ -1427,8 +1620,7 @@ $('view').addEventListener('click', e => {
     $('catList').innerHTML = cats.map(([g, n]) => `<button class="f" type="button" data-pickcat="${esc(g)}">${esc(g)} <small>(${n})</small></button>`).join('');
     openDialog('catDialog'); return;
   }
-  if (t.dataset.genre !== undefined) { pushHist(); vstate[view].cat = ''; vstate[view].genre = t.dataset.genre; vstate[view].cat = ''; vstate[view].limit = 120; renderView(); setTimeout(() => document.querySelector('.chip.on')?.focus(), 0); return; }
-  if (t.dataset.cat !== undefined) { pushHist(); if (vstate[view].genre !== undefined) vstate[view].genre = ''; vstate[view].cat = t.dataset.cat; vstate[view].limit = view === 'live' ? 200 : 120; renderView(); setTimeout(() => document.querySelector(`.chip.on`)?.focus(), 0); return; }
+  if (t.dataset.cat !== undefined) { pushHist(); vstate[view].cat = t.dataset.cat; vstate[view].limit = view === 'live' ? 200 : 120; renderView(); setTimeout(() => document.querySelector(`.chip.on`)?.focus(), 0); return; }
   if (t.dataset.loadmore) { vstate[view].limit += view === 'live' ? 200 : 120; const y = $('main').scrollTop; renderView(); $('main').scrollTop = y; return; }
   if (t.dataset.play !== undefined) { const c = channels[+t.dataset.play]; lastCard = t; c.seriesId && curXt ? openDetail(c) : play(+t.dataset.play); return; }
   if (t.dataset.info !== undefined) { lastCard = t; openDetail(channels[+t.dataset.info]); return; }
@@ -1597,7 +1789,7 @@ function openUpcoming(){
 
 $('catList').addEventListener('click', e => {
   const b = e.target.closest('[data-pickcat]'); if (!b) return;
-  closeDialogs(); pushHist(); const st = vstate[view]; st.cat = b.dataset.pickcat; st.genre = ''; st.limit = 120; renderView();
+  closeDialogs(); pushHist(); const st = vstate[view]; if (st.f) st.f.cat = b.dataset.pickcat; else st.cat = b.dataset.pickcat; st.limit = 120; renderView();
   setTimeout(() => document.querySelector('.chip.on')?.focus(), 0);
 });
 
@@ -1930,7 +2122,7 @@ function openDetail(c){
   detailItem = c;
   const bg = $('dBg'); bg.style.backgroundImage = c.logo ? `url('${cssUrl(c.logo)}')` : ''; $('dHero').classList.remove('backdrop');
   $('dPoster').src = c.logo || ''; $('dPoster').classList.toggle('hidden', !c.logo);
-  $('dTitle').textContent = c.name; $('dMeta').innerHTML = metaLine(c);
+  $('dTitle').textContent = title(c); $('dMeta').innerHTML = metaLine(c);
   $('dPlot').textContent = ''; msg($('serMsg'), ''); $('dCastLine').textContent = ''; $('dTrailer').classList.add('hidden');
   renderSimilar(c);
   updateFavBtns();
@@ -2129,7 +2321,7 @@ function openPlayer(c){
   nowItem = c;
   const live = TYPE(c) === 'live';
   $('prevBtn').classList.toggle('hidden', !live); $('nextBtn').classList.toggle('hidden', !live);
-  $('now').textContent = c.name;
+  $('now').textContent = title(c);
   $('player').classList.remove('hidden');
   updateFavBtns(); wake();
   updateTrackBtn(); showPlayerEpg(c);
@@ -2244,7 +2436,7 @@ async function runNative(c, opts = {}){
   const q = pos[c.url];
   const start = q && q.t > 30 && q.t < q.d - 60 ? q.t : 0;
   let r;
-  const args = { url: c.url, title: c.name, startSec: start, skipIntro: !!c.parent, live: TYPE(c) === 'live', castOnStart: !!opts.cast };
+  const args = { url: c.url, title: title(c), startSec: start, skipIntro: !!c.parent, live: TYPE(c) === 'live', castOnStart: !!opts.cast };
   if (TYPE(c) === 'live') {
     // Skicka med kanallistan så att man kan byta kanal i spelaren (max 1500 runt vald kanal)
     const list = (queue.filter(x => TYPE(x) === 'live').length > 1 ? queue.filter(x => TYPE(x) === 'live') : sortList(byType.live, 'num'));

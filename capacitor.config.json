@@ -2,6 +2,14 @@
   "appId": "se.fredriklofsten.iptv",
   "appName": "IPTV-spelare",
   "webDir": "www",
-  "server": { "androidScheme": "http", "cleartext": true },
-  "android": { "allowMixedContent": true }
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true,
+    "adjustMarginsForEdgeToEdge": "force",
+    "backgroundColor": "#0b0b0f"
+  },
+  "backgroundColor": "#0b0b0f"
 }
