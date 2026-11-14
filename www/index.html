@@ -1363,7 +1363,7 @@ function typeView(t){
   if (list.some(c => c.added)) html += row('Senast tillagda', sortList(list, 'new'));
   if (list.some(c => c.rating)) html += row('Populärast', sortList(list, 'pop'));
   if (hasSv) html += row('🇸🇪 Med svensk text', sortList(list.filter(c => langOf(c).includes('svtext')), 'new'), t + '|l:svtext');
-  genres.forEach(([g]) => html += row(genreIcon(g) + ' ' + g, sortList(list.filter(c => c.genres.includes(g)), 'new'), t + '|g:' + g));
+  genres.filter(([g]) => g !== 'Svenskt').forEach(([g]) => html += row(genreIcon(g) + ' ' + g, sortList(list.filter(c => c.genres.includes(g)), 'new'), t + '|g:' + g));
   if (!genres.length) categories(list).slice(0, 15).forEach(([g]) => html += row(g, sortList(list.filter(c => c.group === g), 'new'), t + '|' + g));
   return html;
 }
@@ -1426,7 +1426,7 @@ function renderFilterSheet(){
   $('fsBody').innerHTML = `
     <h4>Sortera</h4><div class="fchips">${SORTS[t].map(([v, l]) => chip('sort', v, l, f.sort === v)).join('')}</div>
     ${langs.length ? `<h4>Språk och text</h4><div class="fchips">${langs.map(([v, l]) => chip('lang', v, l, f.lang.includes(v))).join('')}</div>` : ''}
-    <h4>Genre <small>(välj flera)</small></h4><div class="fchips">${genreCounts(list).map(([g, c]) => chip('genres', g, `${genreIcon(g)} ${esc(g)} <small>${c}</small>`, f.genres.includes(g))).join('')}</div>
+    <h4>Genre <small>(välj flera)</small></h4><div class="fchips">${genreCounts(list).filter(([g]) => g !== 'Svenskt').map(([g, c]) => chip('genres', g, `${genreIcon(g)} ${esc(g)} <small>${c}</small>`, f.genres.includes(g))).join('')}</div>
     <h4>Utgivningsår</h4><div class="fchips">${DECADES.map(([v, l]) => chip('dec', v, l, f.dec.includes(v))).join('')}</div>
     ${list.some(c => c.rating) ? `<h4>Betyg</h4><div class="fchips">${[6, 7, 8].map(r => chip('rating', r, '★ ' + r + '+', f.rating === r)).join('')}</div>` : ''}
     ${list.some(c => QUAL.some(q => q[2].test(c.name + ' ' + c.group))) ? `<h4>Bildkvalitet</h4><div class="fchips">${QUAL.map(([v, l]) => chip('qual', v, l, f.qual.includes(v))).join('')}</div>` : ''}
