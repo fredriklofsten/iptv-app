@@ -1651,7 +1651,7 @@ function collTiles(list){
   const tiles = COLLECTIONS.filter(k => n[k.id]);
   if (!tiles.length) return '';
   return `<section class="lane"><div class="rowhead"><h3>Samlingar</h3></div><div class="rowscroll">${tiles.map(k =>
-    `<button class="f bt" type="button" data-coll="${k.id}" style="--a:${k.c[0]};--b:${k.c[1]}"><b>${esc(k.name)}</b><small>${esc(k.sub)} · ${n[k.id]}</small></button>`).join('')}</div></section>`;
+    `<button class="f bt" type="button" data-coll="${k.id}" style="--a:${k.c[0]};--b:${k.c[1]}"><b>${esc(k.name)}</b></button>`).join('')}</div></section>`;
 }
 const COLL_SORTS = [['release', 'Utgivningsordning'], ['newest', 'Nyast först'], ['pop', 'Populärast'], ['name', 'Namn A–Ö']];
 function collView(){
@@ -1661,7 +1661,7 @@ function collView(){
   const sorter = list => by === 'release' ? list.slice().sort((a, b) => (+validYear(a.year) || 9999) - (+validYear(b.year) || 9999) || a.name.localeCompare(b.name, 'sv', { numeric: true }))
     : by === 'newest' ? sortList(list, 'year') : sortList(list, by);
   const movies = sorter(items.filter(c => TYPE(c) === 'movie')), series = sorter(items.filter(c => TYPE(c) === 'series'));
-  return `<div class="collhero" style="--a:${k.c[0]};--b:${k.c[1]}"><h1>${esc(k.name)}</h1><div>${esc(k.sub)} · ${items.length} titlar</div></div>
+  return `<div class="collhero" style="--a:${k.c[0]};--b:${k.c[1]}"><h1>${esc(k.name)}</h1><div>${items.length} titlar</div></div>
     <div class="pagehead" style="padding-top:12px"><select class="f" id="collSort" title="Sortera">${COLL_SORTS.map(([v, t]) => `<option value="${v}" ${v === by ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
     ${movies.length ? `<div class="rowhead"><h3>Filmer (${movies.length})</h3></div>${grid(movies, 300)}` : ''}
     ${series.length ? `<div class="rowhead"><h3>Serier (${series.length})</h3></div>${grid(series, 300)}` : ''}`;
