@@ -9,5 +9,6 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ExternalPlayerPlugin.class);
         registerPlugin(NativePlayerPlugin.class);
         super.onCreate(savedInstanceState);
+        try { UpdateCheckWorker.schedule(this); } catch (Exception ignored) {}
     }
 }

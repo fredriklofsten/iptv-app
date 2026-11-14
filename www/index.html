@@ -2557,7 +2557,7 @@ async function checkUpdate(force){
   if (!(v.n > window.APP_BUILD)) { showUpdateBadge(0); return; }
   updLatest = v.n; showUpdateBadge(v.n);
   // Notis i telefonen en gång per ny version
-  if (Notif && store.get('iptv_upd_notified', 0) !== v.n) {
+  if (Notif && store.get('iptv_upd_notified', 0) !== v.n && (await Notif.checkPermissions().catch(() => ({})))?.display === 'granted') {
     store.set('iptv_upd_notified', v.n);
     try { await Notif.schedule({ notifications: [{ id: 990000 + (v.n % 9999), title: '⬆ Ny version av IPTV-spelare', body: `Version ${v.n} finns. Öppna appen och tryck Uppdatera.`, schedule: { at: new Date(Date.now() + 1500) }, extra: { update: v.n } }] }); } catch(_) {}
   }
@@ -2579,6 +2579,18 @@ $('updGo').onclick = () => {
   location.href = APK_URL; // öppnas i webbläsaren som laddar ner den nya appen
 };
 setTimeout(() => checkUpdate(true), 4000);
+// Be om lov att visa notiser en gång (krävs på Android 13 och senare), så att uppdateringar och påminnelser syns
+setTimeout(async () => {
+  if (!Notif || store.get('iptv_notif_asked', false) || !user) return;
+  store.set('iptv_notif_asked', true);
+  try {
+    const p = await Notif.checkPermissions();
+    if (p?.display !== 'granted') {
+      status('🔔 Tillåt notiser för att få besked om nya versioner och påminnelser om matcher'); setTimeout(() => status(''), 6000);
+      await Notif.requestPermissions();
+    }
+  } catch(_) {}
+}, 8000);
 setInterval(() => checkUpdate(), 30 * 60e3);
 // Kolla också när appen öppnas från bakgrunden (Android startar sällan om appen)
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
