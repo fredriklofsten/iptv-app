@@ -28,6 +28,8 @@ jobs:
         run: |
           echo "window.APP_BUILD = ${{ github.run_number }};" > www/version.js
           echo "msg=$(git log -1 --pretty=%s)" >> "$GITHUB_OUTPUT"
+      - name: Stöd för äldre TV-webbläsare
+        run: npm i --no-save esbuild@0.24 && node tools/legacy.mjs
       - run: npx cap sync android
       - name: Signeringsnyckel från hemlighet (om den finns)
         env:

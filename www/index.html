@@ -4,6 +4,45 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>IPTV-spelare</title>
+<script>
+/* Startvakt (ES5): fångar fel innan appen startat, visar dem på skärmen och skickar en felrapport. */
+(function(){
+  var errs = [], shown = false;
+  function sendReport(msg){
+    try {
+      var tok = null;
+      for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (/^sb-.*-auth-token$/.test(k)) { try { tok = JSON.parse(localStorage.getItem(k)).access_token; } catch(e) {} } }
+      if (!tok) return;
+      var x = new XMLHttpRequest();
+      x.open('POST', 'https://puqzolsfzkbezhxwtkbh.supabase.co/rest/v1/app_errors');
+      x.setRequestHeader('apikey', 'sb_publishable_bLjqZNa0SrDUag-q3j7lYg_GW7uTEPB');
+      x.setRequestHeader('Authorization', 'Bearer ' + tok);
+      x.setRequestHeader('Content-Type', 'application/json');
+      x.send(JSON.stringify({ kind: 'boot', app_version: window.APP_BUILD || 0, platform: /Android/.test(navigator.userAgent) ? 'android' : 'web', message: String(msg).slice(0, 1500), detail: { ua: navigator.userAgent, errs: errs.slice(0, 5) } }));
+    } catch(e) {}
+  }
+  window.__bootErr = function(m){ errs.push(String(m).slice(0, 400)); };
+  window.addEventListener('error', function(e){ window.__bootErr((e.message || 'fel') + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno); });
+  window.addEventListener('unhandledrejection', function(e){ var r = e.reason; window.__bootErr('promise: ' + (r && (r.message || r)) ); });
+  function check(){
+    if (window.__booted || shown) return;
+    shown = true;
+    var m = errs.length ? errs.join(' | ') : 'Appen startade inte (ingen felkod).';
+    sendReport(m);
+    var d = document.createElement('div');
+    d.style.cssText = 'position:fixed;inset:0;top:0;left:0;right:0;bottom:0;z-index:99999;background:#0f1115;color:#fff;font:18px sans-serif;padding:8%;';
+    d.innerHTML = '<h2>Appen kunde inte starta</h2><p>Ta gärna en bild av den här skärmen och skicka till den som gav dig appen.</p>' +
+      '<p style="color:#ffb4b4;font-size:14px;word-break:break-all"></p><p style="color:#8b93a7;font-size:13px;word-break:break-all"></p>' +
+      '<button id="__bootRetry" style="font-size:20px;padding:12px 28px;margin-top:12px">Försök igen</button>';
+    d.getElementsByTagName('p')[1].textContent = m;
+    d.getElementsByTagName('p')[2].textContent = 'Version ' + (window.APP_BUILD || '?') + ' · ' + navigator.userAgent;
+    (document.body || document.documentElement).appendChild(d);
+    var b = document.getElementById('__bootRetry'); b.onclick = function(){ location.reload(); }; try { b.focus(); } catch(e) {}
+  }
+  setTimeout(check, 20000);
+  window.addEventListener('load', function(){ setTimeout(function(){ if (errs.length && !window.__booted) check(); }, 3000); });
+})();
+</script>
 <script src="version.js" onerror="window.APP_BUILD=0"></script>
 <script src="vendor/supabase.js"></script>
 <script src="vendor/hls.min.js"></script>
@@ -764,7 +803,7 @@ let authReady = false;
 sb.auth.onAuthStateChange((event, session) => {
   const u = session?.user || null;
   if (authReady && u?.id === user?.id) return;
-  authReady = true;
+  authReady = true; window.__booted = true;
   user = u;
   if (user) { show('app'); loadAll(); subscribe(); castSubscribe(); }
   else { unsubscribe(); castUnsub(); allChannels = []; sync = { profiles: [], pin: null, p: {} }; channels = []; playlists = []; favs.clear(); IS_TV ? (show('codeView'), startCodeLogin()) : show('loginView'); }
