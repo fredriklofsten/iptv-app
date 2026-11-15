@@ -735,7 +735,7 @@ if (!window.supabase) {
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const WEB_URL = 'https://fredriklofsten.github.io/iptv-app/';
 if (/type=signup|#bekraftad/.test(location.hash)) setTimeout(() => { const m = $('loginMsg'); if (m) msg(m, '✅ Kontot är bekräftat! Logga in i appen på telefonen eller TV:n.'); }, 300);
-const IS_TV = /Web0S|webOS|Tizen|SMART-TV|SmartTV|Android TV|AFT[A-Z]|BRAVIA|GoogleTV|CrKey/i.test(navigator.userAgent) || location.hash === '#tv';
+const IS_TV = /Web0S|webOS|Tizen|Smart[- ]?TV|Android TV|AFT[A-Z]|BRAVIA|GoogleTV|CrKey/i.test(navigator.userAgent) || location.hash === '#tv';
 if (IS_TV) document.body.classList.add('tv');
 
 let curXt = null;
@@ -1164,22 +1164,47 @@ $('xtTest').onclick = async () => {
     msg($('plMsg'), 'Kunde inte nå servern (' + e.message + '). Kontrollera adressen – servern kan också blockera webbläsare.', true);
   }
 };
+// Stora listor (filmer/serier): på TV, eller om hela listan inte gick att hämta, hämtas de kategori för kategori.
+// Små förfrågningar, några åt gången, klarar svaga TV-apparater och långsamma leverantörer mycket bättre.
+async function xtBig(x, action, ms, pCats, progress, markPartial){
+  const flag = 'iptv_percat_' + urlHost(x.s) + '_' + action;
+  if (!IS_TV && !store.get(flag, false)) {
+    try { return await xtApi(x, action, ms); }
+    catch (e) { store.set(flag, true); }
+  }
+  const cats = (await pCats || []).map(c => String(c.category_id)).filter(Boolean);
+  if (!cats.length) return xtApi(x, action, ms);
+  const out = [], seen = new Set(); let done = 0, failed = 0, next = 0;
+  const worker = async () => {
+    while (next < cats.length) {
+      const id = cats[next++];
+      let part = null;
+      try { part = await xtApi(x, action + '&category_id=' + encodeURIComponent(id), 60000); } catch(_) { failed++; }
+      if (Array.isArray(part)) for (const it of part) { const k = it.stream_id || it.series_id; if (!seen.has(k)) { seen.add(k); out.push(it); } }
+      done++; progress?.(done + '/' + cats.length);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, cats.length) }, worker));
+  if (failed) { markPartial?.(); reportError('playlist', action + ': ' + failed + ' av ' + cats.length + ' kategorier misslyckades'); }
+  if (!out.length && failed) throw new Error('inga kategorier kunde hämtas');
+  return out;
+}
 async function loadXtream(x, onPartial){
   const path = `${encodeURIComponent(x.u)}/${encodeURIComponent(x.p)}`;
   try {
     // Visar vad som hämtas, så att det syns om något hänger sig (och rapporterar långsamma steg)
     const steps = { 'kanaler': 'väntar', 'filmer': x.vod ? 'väntar' : '', 'serier': x.vod ? 'väntar' : '' }, t0 = Date.now();
-    const show = () => { if (Object.values(steps).some(v => v === 'väntar')) status((allChannels.length ? 'Hämtar resten… ' : 'Läser in… ') + Object.entries(steps).filter(([, v]) => v).map(([k, v]) => k + ' ' + (v === 'klar' ? '✓' : v === 'fel' ? '✗' : '…')).join('  ·  ') + '  (' + Math.round((Date.now() - t0) / 1000) + ' s)'); };
+    const show = () => { if (Object.values(steps).some(v => v !== 'klar' && v !== 'fel' && v)) status((allChannels.length ? 'Hämtar resten… ' : 'Läser in… ') + Object.entries(steps).filter(([, v]) => v).map(([k, v]) => k + ' ' + (v === 'klar' ? '✓' : v === 'fel' ? '✗' : v === 'väntar' ? '…' : v)).join('  ·  ') + '  (' + Math.round((Date.now() - t0) / 1000) + ' s)'); };
     const tick = setInterval(show, 1000);
     const slow = setTimeout(() => reportError('playlist-slow', 'inläsning hänger', { steps: { ...steps }, s: Math.round((Date.now() - t0) / 1000) }), 45000);
     const track = (k, pr) => pr.then(v => { steps[k] = 'klar'; return v; }, e => { steps[k] = 'fel'; throw e; });
     let partial = false;
-    const opt = (k, a, ms) => x.vod ? track(k, xtApi(x, a, ms)).catch(e => { partial = true; reportError('playlist', k + ': ' + (e?.message || e)); return []; }) : [];
+    const opt = (k, a, ms, pCats) => x.vod ? track(k, xtBig(x, a, ms, pCats, v => steps[k] = v, () => partial = true)).catch(e => { partial = true; reportError('playlist', k + ': ' + (e?.message || e)); return []; }) : [];
     let cats, live, vcats, vod, scats, series;
     try {
       const pCats = xtApi(x, 'get_live_categories').catch(() => []), pLive = track('kanaler', xtApi(x, 'get_live_streams', 120000));
-      const pV = [x.vod ? xtApi(x, 'get_vod_categories').catch(() => []) : [], opt('filmer', 'get_vod_streams', 180000),
-                  x.vod ? xtApi(x, 'get_series_categories').catch(() => []) : [], opt('serier', 'get_series', 150000)];
+      const pVc = x.vod ? xtApi(x, 'get_vod_categories').catch(() => []) : [], pSc = x.vod ? xtApi(x, 'get_series_categories').catch(() => []) : [];
+      const pV = [pVc, opt('filmer', 'get_vod_streams', 120000, pVc), pSc, opt('serier', 'get_series', 120000, pSc)];
       [cats, live] = await Promise.all([pCats, pLive]);
       if (onPartial && Array.isArray(live)) { const cm0 = Object.fromEntries((Array.isArray(cats) ? cats : []).map(c => [String(c.category_id), c.category_name]));
         onPartial(live.map(s => ({ type: 'live', name: s.name, logo: s.stream_icon || '', group: cm0[String(s.category_id)] || 'Övrigt',
