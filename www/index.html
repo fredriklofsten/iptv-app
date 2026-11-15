@@ -377,6 +377,7 @@
       <button class="f ghost" type="button" id="signupBtn">Skapa konto</button>
     </div>
     <div class="msg" id="loginMsg"></div>
+    <button class="f link" type="button" id="forgotBtn">Glömt lösenordet?</button>
     <button class="f link" type="button" id="toCodeBtn">Logga in med kod (för TV)</button>
   </form>
 </div>
@@ -588,6 +589,17 @@
   </div>
 </div>
 
+<!-- Nytt lösenord -->
+<div id="pwDialog" class="overlay hidden">
+  <form class="card" id="pwForm">
+    <div class="sheethead"><h2>Välj nytt lösenord</h2><button class="f iconbtn" type="button" data-close>✕</button></div>
+    <input class="f" id="pwNew" type="password" placeholder="Nytt lösenord (minst 6 tecken)" autocomplete="new-password" required minlength="6">
+    <input class="f" id="pwNew2" type="password" placeholder="Upprepa lösenordet" autocomplete="new-password" required minlength="6">
+    <div class="msg" id="pwMsg"></div>
+    <button class="f" type="submit">Spara lösenord</button>
+  </form>
+</div>
+
 <!-- Mer (mobil) -->
 <div id="moreSheet" class="overlay hidden">
   <div class="card sheet">
@@ -643,6 +655,7 @@
     <div class="menusec"><h4>TV och enheter</h4>
       <button class="f ghost" type="button" id="pairBtn">📺 Koppla en TV</button></div>
     <div class="menusec"><h4>Konto</h4>
+      <button class="f ghost" type="button" id="pwChangeBtn">🔑 Byt lösenord</button>
       <button class="f ghost" type="button" id="logoutBtn">↩ Logga ut</button>
       <div class="msg" id="appVersion"></div></div>
   </div>
@@ -745,6 +758,24 @@ $('loginForm').onsubmit = async e => {
   if (error) msg($('loginMsg'), error.message === 'Invalid login credentials' ? 'Fel e-post eller lösenord.' :
     /confirm/i.test(error.message) ? 'Bekräfta först kontot via länken i mejlet.' : error.message, true);
 };
+$('forgotBtn').onclick = async () => {
+  const email = $('email').value.trim();
+  if (!/^\S+@\S+\.\S+$/.test(email)) return msg($('loginMsg'), 'Skriv din e-postadress i fältet ovan och tryck sedan på Glömt lösenordet igen.', true);
+  msg($('loginMsg'), 'Skickar…');
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: WEB_URL });
+  if (error) return msg($('loginMsg'), /rate|seconds/i.test(error.message) ? 'Vänta en stund och försök igen.' : 'Kunde inte skicka: ' + error.message, true);
+  msg($('loginMsg'), '📧 Vi har skickat en länk till ' + email + '. Öppna mejlet, tryck på länken och välj ett nytt lösenord. Kolla skräpposten om det inte syns.');
+};
+$('pwChangeBtn').onclick = () => { closeDialogs(); msg($('pwMsg'), ''); openDialog('pwDialog'); };
+$('pwForm').onsubmit = async e => {
+  e.preventDefault();
+  if ($('pwNew').value !== $('pwNew2').value) return msg($('pwMsg'), 'Lösenorden är inte likadana.', true);
+  msg($('pwMsg'), 'Sparar…');
+  const { error } = await sb.auth.updateUser({ password: $('pwNew').value });
+  if (error) return msg($('pwMsg'), /different|same/i.test(error.message) ? 'Välj ett annat lösenord än det gamla.' : 'Kunde inte spara: ' + error.message, true);
+  $('pwNew').value = $('pwNew2').value = '';
+  msg($('pwMsg'), '✅ Lösenordet är bytt. Logga in med det nya lösenordet i appen.');
+};
 $('signupBtn').onclick = async () => {
   const email = $('email').value.trim(), password = $('password').value;
   if (!email || password.length < 6) return msg($('loginMsg'), 'Fyll i e-post och ett lösenord på minst 6 tecken.', true);
@@ -809,6 +840,7 @@ $('pairForm').onsubmit = async e => {
 
 let authReady = false;
 sb.auth.onAuthStateChange((event, session) => {
+  if (event === 'PASSWORD_RECOVERY') setTimeout(() => { msg($('pwMsg'), 'Du kom hit via länken i mejlet. Välj ditt nya lösenord.'); $('pwDialog').classList.remove('hidden'); $('pwDialog').style.zIndex = 60; setTimeout(() => $('pwNew').focus(), 50); }, 1500);
   const u = session?.user || null;
   if (authReady && u?.id === user?.id) return;
   authReady = true; window.__booted = true;
