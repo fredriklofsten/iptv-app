@@ -789,7 +789,15 @@ $('pairBtn').onclick = () => openDialog('pairDialog');
 $('pairForm').onsubmit = async e => {
   e.preventDefault();
   msg($('pairMsg'), 'Kopplar…');
-  const { data, error } = await sb.functions.invoke('approve-tv', { body: { code: $('pairCode').value } });
+  // Inloggningen kan ha gått ut medan appen låg i bakgrunden: förnya den först, och försök igen vid 401
+  const call = async () => {
+    let { data: { session } } = await sb.auth.getSession();
+    if (!session || (session.expires_at || 0) * 1000 < Date.now() + 60e3) session = (await sb.auth.refreshSession()).data.session || session;
+    return sb.functions.invoke('approve-tv', { body: { code: $('pairCode').value }, headers: session ? { Authorization: 'Bearer ' + session.access_token } : {} });
+  };
+  let { data, error } = await call();
+  if (error?.context?.status === 401) { await sb.auth.refreshSession().catch(() => {}); ({ data, error } = await call()); }
+  if (error?.context?.status === 401) return msg($('pairMsg'), 'Inloggningen på telefonen har gått ut. Logga ut och in igen under Inställningar → Konto, och försök sedan igen.', true);
   if (error) {
     let text = 'Något gick fel.';
     try { text = (await error.context.json()).error || text; } catch(_) {}
