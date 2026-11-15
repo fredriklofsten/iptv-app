@@ -875,6 +875,7 @@ window.addEventListener('unhandledrejection', e => reportError('promise', e.reas
 const NATIVE = !!(window.Capacitor && ((Capacitor.isNativePlatform && Capacitor.isNativePlatform()) || (Capacitor.getPlatform && Capacitor.getPlatform() === 'android') || window.androidBridge));
 // I Android-appen hämtas spellistor via Androids eget nätverk, så servrar kan inte blockera dem.
 // Hämtar text med tidsgräns. Vissa leverantörer svarar inte på standard-klienten, så vid fel provas en mediaspelar-identitet.
+const urlHost = u => { try { return new URL(u).host; } catch(_) { return ''; } };
 const HTTP_UAS = [null, 'IPTVSmartersPlayer', 'VLC/3.0.20 LibVLC/3.0.20'];
 function withTimeout(pr, ms, what){
   let t; return Promise.race([pr, new Promise((_, rej) => t = setTimeout(() => rej(new Error('tidsgräns ' + Math.round(ms / 1000) + ' s' + (what ? ' (' + what + ')' : ''))), ms))]).finally(() => clearTimeout(t));
@@ -883,6 +884,16 @@ async function httpText(url, ms = 60000, tries = 2){
   let last;
   for (let i = 0; i < tries; i++) {
     try {
+      if (NATIVE && i === 0 && store.get('iptv_directfetch_' + urlHost(url), true)) {
+        try {
+          const r = await withTimeout(fetch(url), ms);
+          if (r.ok) return await r.text();
+          if (r.status >= 400 && r.status !== 403) throw new Error('HTTP ' + r.status);
+        } catch (e) {
+          if (/^HTTP /.test(e.message)) throw e;
+          if (!/tidsgräns/.test(e.message)) store.set('iptv_directfetch_' + urlHost(url), false); // CORS stoppar: använd native framöver
+        }
+      }
       if (NATIVE) {
         const headers = HTTP_UAS[i] ? { 'User-Agent': HTTP_UAS[i] } : {};
         const r = await withTimeout(Capacitor.Plugins.CapacitorHttp.get({ url, headers, responseType: 'text', connectTimeout: 20000, readTimeout: ms }), ms + 5000);
@@ -941,9 +952,9 @@ const CACHE_MAX_AGE = 6 * 3600e3;
 const listKey = p => p.url || ('fil:' + (p.content || '').length);
 const strip = c => { const { genres, sport, sicon, when, title, _fallback, ...rest } = c; return rest; };
 
-async function fetchList(p){
+async function fetchList(p, onPartial){
   const xt = parseXtream(p.url) || xtFromGetPhp(p.url);
-  if (xt) return loadXtream(xt);
+  if (xt) return loadXtream(xt, onPartial);
   let text = p.content;
   if (!text && p.url) text = await httpText(p.url);
   return parseM3U(text || '');
@@ -966,9 +977,16 @@ async function loadPlaylist(id, resume, force){
   }
   status('Läser in ' + p.name + '… (första gången kan ta en stund)');
   try {
-    const list = await fetchList(p);
-    applyList(id, list, resume);
-    idb.set(id, { key: listKey(p), ts: Date.now(), list: list.map(strip) });
+    let shown = false;
+    const list = await fetchList(p, part => { if (!shown && part.length && $('plSelect').value === id) { shown = true; applyList(id, part, resume); } });
+    if (!shown) applyList(id, list, resume);
+    else if ($('plSelect').value === id) {
+      const y = $('main').scrollTop, f = document.activeElement?.dataset?.i;
+      list.forEach(c => { if (c.type && c.type !== 'live' && !validYear(c.year)) c.year = yearOf(c.name); else if (c.year) c.year = validYear(c.year); });
+      allChannels = list; mergeRemote(); applyFilter(); status(''); $('main').scrollTop = y;
+      if (f !== undefined) document.querySelector(`.card[data-i="${f}"]`)?.focus();
+    }
+    idb.set(id, { key: listKey(p), ts: list._partial ? 0 : Date.now(), list: list.map(strip) });
   } catch (e) {
     status((curXt ? 'Kunde inte hämta kanaler från leverantören' : 'Kunde inte hämta spellistan') + ' (' + e.message + ').', true);
     reportError('playlist', e.message, { xtream: !!curXt });
@@ -1146,30 +1164,34 @@ $('xtTest').onclick = async () => {
     msg($('plMsg'), 'Kunde inte nå servern (' + e.message + '). Kontrollera adressen – servern kan också blockera webbläsare.', true);
   }
 };
-async function loadXtream(x){
+async function loadXtream(x, onPartial){
   const path = `${encodeURIComponent(x.u)}/${encodeURIComponent(x.p)}`;
   try {
     // Visar vad som hämtas, så att det syns om något hänger sig (och rapporterar långsamma steg)
     const steps = { 'kanaler': 'väntar', 'filmer': x.vod ? 'väntar' : '', 'serier': x.vod ? 'väntar' : '' }, t0 = Date.now();
-    const show = () => { if (!allChannels.length) status('Läser in… ' + Object.entries(steps).filter(([, v]) => v).map(([k, v]) => k + ' ' + (v === 'klar' ? '✓' : v === 'fel' ? '✗' : '…')).join('  ·  ') + '  (' + Math.round((Date.now() - t0) / 1000) + ' s)'); };
+    const show = () => { if (Object.values(steps).some(v => v === 'väntar')) status((allChannels.length ? 'Hämtar resten… ' : 'Läser in… ') + Object.entries(steps).filter(([, v]) => v).map(([k, v]) => k + ' ' + (v === 'klar' ? '✓' : v === 'fel' ? '✗' : '…')).join('  ·  ') + '  (' + Math.round((Date.now() - t0) / 1000) + ' s)'); };
     const tick = setInterval(show, 1000);
     const slow = setTimeout(() => reportError('playlist-slow', 'inläsning hänger', { steps: { ...steps }, s: Math.round((Date.now() - t0) / 1000) }), 45000);
     const track = (k, pr) => pr.then(v => { steps[k] = 'klar'; return v; }, e => { steps[k] = 'fel'; throw e; });
-    const opt = (k, a, ms) => x.vod ? track(k, xtApi(x, a, ms)).catch(e => { reportError('playlist', k + ': ' + (e?.message || e)); return []; }) : [];
+    let partial = false;
+    const opt = (k, a, ms) => x.vod ? track(k, xtApi(x, a, ms)).catch(e => { partial = true; reportError('playlist', k + ': ' + (e?.message || e)); return []; }) : [];
     let cats, live, vcats, vod, scats, series;
     try {
-      [cats, live, vcats, vod, scats, series] = await Promise.all([
-        xtApi(x, 'get_live_categories').catch(() => []), track('kanaler', xtApi(x, 'get_live_streams', 90000)),
-        x.vod ? xtApi(x, 'get_vod_categories').catch(() => []) : [], opt('filmer', 'get_vod_streams', 150000),
-        x.vod ? xtApi(x, 'get_series_categories').catch(() => []) : [], opt('serier', 'get_series', 120000)
-      ]);
+      const pCats = xtApi(x, 'get_live_categories').catch(() => []), pLive = track('kanaler', xtApi(x, 'get_live_streams', 120000));
+      const pV = [x.vod ? xtApi(x, 'get_vod_categories').catch(() => []) : [], opt('filmer', 'get_vod_streams', 180000),
+                  x.vod ? xtApi(x, 'get_series_categories').catch(() => []) : [], opt('serier', 'get_series', 150000)];
+      [cats, live] = await Promise.all([pCats, pLive]);
+      if (onPartial && Array.isArray(live)) { const cm0 = Object.fromEntries((Array.isArray(cats) ? cats : []).map(c => [String(c.category_id), c.category_name]));
+        onPartial(live.map(s => ({ type: 'live', name: s.name, logo: s.stream_icon || '', group: cm0[String(s.category_id)] || 'Övrigt',
+          num: +s.num || 0, added: +s.added || 0, sid: s.stream_id, arch: +s.tv_archive || 0, archDays: +s.tv_archive_duration || 0, url: `${x.s}/live/${path}/${s.stream_id}.m3u8` }))); }
+      [vcats, vod, scats, series] = await Promise.all(pV);
     } finally { clearInterval(tick); clearTimeout(slow); }
     if (!Array.isArray(live)) throw new Error('fel svar');
     const map = list => Object.fromEntries((Array.isArray(list) ? list : []).map(c => [String(c.category_id), c.category_name]));
     const cm = map(cats), vm = map(vcats), sm = map(scats);
     const arr = a => Array.isArray(a) ? a : [];
     const rating = s => parseFloat(s.rating) || (parseFloat(s.rating_5based) * 2) || 0;
-    return [
+    const out = [
       ...live.map(s => ({ type: 'live', name: s.name, logo: s.stream_icon || '', group: cm[String(s.category_id)] || 'Övrigt',
         num: +s.num || 0, added: +s.added || 0, sid: s.stream_id, arch: +s.tv_archive || 0, archDays: +s.tv_archive_duration || 0, url: `${x.s}/live/${path}/${s.stream_id}.m3u8` })),
       ...arr(vod).map(s => ({ type: 'movie', name: s.name, logo: s.stream_icon || '', group: vm[String(s.category_id)] || 'Övrigt',
@@ -1179,6 +1201,8 @@ async function loadXtream(x){
         added: +s.last_modified || (Date.parse(s.releaseDate || s.release_date) / 1000) || 0, rating: rating(s),
         year: yearOf(s.name, s.year, s.releaseDate, s.release_date), seriesId: s.series_id, genre: s.genre || '', url: `xtseries:${s.series_id}` }))
     ];
+    if (partial) out._partial = true;
+    return out;
   } catch (e) {
     // Reserv: hämta som vanlig M3U-lista
     try { return parseM3U(await httpText(`${x.s}/get.php?${xtQuery(x)}&type=m3u_plus&output=m3u8`, 120000, 1)); }
