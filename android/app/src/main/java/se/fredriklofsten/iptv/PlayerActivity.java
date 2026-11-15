@@ -64,6 +64,7 @@ public class PlayerActivity extends AppCompatActivity {
     };
     private int uaIndex = 0;
     private String errorDetail = null;
+    private String castError = null;
     // Google Cast
     private CastPlayer castPlayer;
     private Player active;
@@ -219,8 +220,10 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private MediaItem itemFor(String url, String title) {
+        // Till Chromecast går strömmen via telefonen (CastProxy) – löser CORS, blockerad identitet och omdirigeringar
+        String uri = (castPlayer != null && active == castPlayer) ? CastProxy.get().wrap(url) : url;
         MediaItem.Builder item = new MediaItem.Builder()
-            .setUri(Uri.parse(url))
+            .setUri(Uri.parse(uri))
             .setMediaMetadata(new MediaMetadata.Builder().setTitle(title).build());
         String mime = mimeFor(url);
         // Lokalt får ExoPlayer själv avgöra formatet utom för HLS; Chromecast behöver alltid typen
@@ -238,6 +241,8 @@ public class PlayerActivity extends AppCompatActivity {
                     if (state == Player.STATE_ENDED && active == castPlayer && !isLive) { ended = true; done(); }
                 }
                 @Override public void onPlayerError(PlaybackException e) {
+                    String pe = CastProxy.get().lastError;
+                    castError = e.getErrorCodeName() + (e.getMessage() != null ? " " + e.getMessage() : "") + (pe != null ? " | proxy: " + pe : "") + " | typ=" + mimeFor(curUrl);
                     Toast.makeText(PlayerActivity.this, "Chromecast kunde inte spela den här strömmen", Toast.LENGTH_LONG).show();
                     switchTo(player);
                 }
@@ -355,6 +360,7 @@ public class PlayerActivity extends AppCompatActivity {
         result.putExtra("index", index);
         if (error != null) result.putExtra("error", error);
         if (errorDetail != null) result.putExtra("errorDetail", errorDetail);
+        if (castError != null) result.putExtra("castError", castError);
         setResult(RESULT_OK, result);
         finish();
     }

@@ -2599,6 +2599,7 @@ async function runNative(c, opts = {}){
   try { r = await NativePlayer.play(args); }
   catch (e) { r = { error: e?.message || 'okänt fel' }; }
   nativeBusy = false; r = r || {};
+  if (r.castError) reportError('cast', r.castError, { type: TYPE(c), url: c.url, name: c.name });
   if (r.error) {
     reportError('player', r.error, { type: TYPE(c), url: c.url, name: c.name, detail: r.errorDetail || '' });
     if (ExternalPlayer) { status('Den inbyggda spelaren klarade inte den här. Öppnar i annan spelare…'); setTimeout(() => status(''), 4000); openExternal(c); }

@@ -61,6 +61,8 @@ public class NativePlayerPlugin extends Plugin {
             if (err != null) out.put("error", err);
             String det = data.getStringExtra("errorDetail");
             if (det != null) out.put("errorDetail", det);
+            String ce = data.getStringExtra("castError");
+            if (ce != null) out.put("castError", ce);
         }
         call.resolve(out);
     }
