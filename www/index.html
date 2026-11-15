@@ -834,13 +834,27 @@ window.addEventListener('unhandledrejection', e => reportError('promise', e.reas
 // ====== NÄTVERK ======
 const NATIVE = !!(window.Capacitor && ((Capacitor.isNativePlatform && Capacitor.isNativePlatform()) || (Capacitor.getPlatform && Capacitor.getPlatform() === 'android') || window.androidBridge));
 // I Android-appen hämtas spellistor via Androids eget nätverk, så servrar kan inte blockera dem.
-async function httpText(url){
-  if (NATIVE) {
-    const r = await Capacitor.Plugins.CapacitorHttp.get({ url, responseType: 'text' });
-    if (r.status >= 400) throw new Error('HTTP ' + r.status);
-    return typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+// Hämtar text med tidsgräns. Vissa leverantörer svarar inte på standard-klienten, så vid fel provas en mediaspelar-identitet.
+const HTTP_UAS = [null, 'IPTVSmartersPlayer', 'VLC/3.0.20 LibVLC/3.0.20'];
+function withTimeout(pr, ms, what){
+  let t; return Promise.race([pr, new Promise((_, rej) => t = setTimeout(() => rej(new Error('tidsgräns ' + Math.round(ms / 1000) + ' s' + (what ? ' (' + what + ')' : ''))), ms))]).finally(() => clearTimeout(t));
+}
+async function httpText(url, ms = 60000, tries = 2){
+  let last;
+  for (let i = 0; i < tries; i++) {
+    try {
+      if (NATIVE) {
+        const headers = HTTP_UAS[i] ? { 'User-Agent': HTTP_UAS[i] } : {};
+        const r = await withTimeout(Capacitor.Plugins.CapacitorHttp.get({ url, headers, responseType: 'text', connectTimeout: 20000, readTimeout: ms }), ms + 5000);
+        if (r.status >= 400) throw new Error('HTTP ' + r.status);
+        return typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+      }
+      const ac = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const r = await withTimeout(fetch(url, ac ? { signal: ac.signal } : {}), ms).catch(e => { try { ac && ac.abort(); } catch(_) {} throw e; });
+      if (!r.ok) throw new Error('HTTP ' + r.status); return await r.text();
+    } catch (e) { last = e; }
   }
-  const r = await fetch(url); if (!r.ok) throw new Error('HTTP ' + r.status); return r.text();
+  throw last;
 }
 
 // ====== DATA ======
@@ -1077,8 +1091,8 @@ function xtFromForm(){
   return { s, u, p, vod: $('xtVod').checked };
 }
 function xtQuery(x){ return `username=${encodeURIComponent(x.u)}&password=${encodeURIComponent(x.p)}`; }
-async function xtApi(x, action){
-  return JSON.parse(await httpText(`${x.s}/player_api.php?${xtQuery(x)}${action ? '&action=' + action : ''}`));
+async function xtApi(x, action, ms){
+  return JSON.parse(await httpText(`${x.s}/player_api.php?${xtQuery(x)}${action ? '&action=' + action : ''}`, ms || 30000));
 }
 $('xtTest').onclick = async () => {
   const x = xtFromForm(); if (!x) return;
@@ -1095,11 +1109,21 @@ $('xtTest').onclick = async () => {
 async function loadXtream(x){
   const path = `${encodeURIComponent(x.u)}/${encodeURIComponent(x.p)}`;
   try {
-    const opt = a => x.vod ? xtApi(x, a).catch(() => []) : [];
-    const [cats, live, vcats, vod, scats, series] = await Promise.all([
-      xtApi(x, 'get_live_categories'), xtApi(x, 'get_live_streams'),
-      opt('get_vod_categories'), opt('get_vod_streams'), opt('get_series_categories'), opt('get_series')
-    ]);
+    // Visar vad som hämtas, så att det syns om något hänger sig (och rapporterar långsamma steg)
+    const steps = { 'kanaler': 'väntar', 'filmer': x.vod ? 'väntar' : '', 'serier': x.vod ? 'väntar' : '' }, t0 = Date.now();
+    const show = () => { if (!allChannels.length) status('Läser in… ' + Object.entries(steps).filter(([, v]) => v).map(([k, v]) => k + ' ' + (v === 'klar' ? '✓' : v === 'fel' ? '✗' : '…')).join('  ·  ') + '  (' + Math.round((Date.now() - t0) / 1000) + ' s)'); };
+    const tick = setInterval(show, 1000);
+    const slow = setTimeout(() => reportError('playlist-slow', 'inläsning hänger', { steps: { ...steps }, s: Math.round((Date.now() - t0) / 1000) }), 45000);
+    const track = (k, pr) => pr.then(v => { steps[k] = 'klar'; return v; }, e => { steps[k] = 'fel'; throw e; });
+    const opt = (k, a, ms) => x.vod ? track(k, xtApi(x, a, ms)).catch(e => { reportError('playlist', k + ': ' + (e?.message || e)); return []; }) : [];
+    let cats, live, vcats, vod, scats, series;
+    try {
+      [cats, live, vcats, vod, scats, series] = await Promise.all([
+        xtApi(x, 'get_live_categories').catch(() => []), track('kanaler', xtApi(x, 'get_live_streams', 90000)),
+        x.vod ? xtApi(x, 'get_vod_categories').catch(() => []) : [], opt('filmer', 'get_vod_streams', 150000),
+        x.vod ? xtApi(x, 'get_series_categories').catch(() => []) : [], opt('serier', 'get_series', 120000)
+      ]);
+    } finally { clearInterval(tick); clearTimeout(slow); }
     if (!Array.isArray(live)) throw new Error('fel svar');
     const map = list => Object.fromEntries((Array.isArray(list) ? list : []).map(c => [String(c.category_id), c.category_name]));
     const cm = map(cats), vm = map(vcats), sm = map(scats);
@@ -1117,7 +1141,7 @@ async function loadXtream(x){
     ];
   } catch (e) {
     // Reserv: hämta som vanlig M3U-lista
-    try { return parseM3U(await httpText(`${x.s}/get.php?${xtQuery(x)}&type=m3u_plus&output=m3u8`)); }
+    try { return parseM3U(await httpText(`${x.s}/get.php?${xtQuery(x)}&type=m3u_plus&output=m3u8`, 120000, 1)); }
     catch (_) { throw e; }
   }
 }
