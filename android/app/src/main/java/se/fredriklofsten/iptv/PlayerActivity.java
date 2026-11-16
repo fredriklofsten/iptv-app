@@ -139,7 +139,7 @@ public class PlayerActivity extends AppCompatActivity {
         skipBtn = new Button(this);
         skipBtn.setText("Hoppa över intro ⏭");
         skipBtn.setVisibility(View.GONE);
-        skipBtn.setOnClickListener(v -> { if (player != null) player.seekTo(player.getCurrentPosition() + 85000); skipBtn.setVisibility(View.GONE); view.requestFocus(); });
+        skipBtn.setOnClickListener(v -> { if (player != null) player.seekTo(player.getCurrentPosition() + 85000); introSkipped = true; skipBtn.setVisibility(View.GONE); view.requestFocus(); });
         FrameLayout.LayoutParams sp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.END);
         sp.setMargins(0, 0, dp(32), dp(110));
         root.addView(skipBtn, sp);
@@ -359,15 +359,22 @@ public class PlayerActivity extends AppCompatActivity {
         showLabel(titles.get(index));
     }
 
-    // Visa "Hoppa över intro" under avsnittets första minuter
+    // Visa "Hoppa över intro" bara medan introt pågår (ca 5–90 s in i avsnittet)
+    private static final long INTRO_START_MS = 5000, INTRO_END_MS = 90000;
+    private boolean introSkipped = false;
+    private void hideSkipBtn() {
+        if (skipBtn.getVisibility() != View.VISIBLE) return;
+        boolean hadFocus = skipBtn.hasFocus();
+        skipBtn.setVisibility(View.GONE);
+        if (hadFocus) view.requestFocus(); // TV: fjärrkontrollen ska inte tappa fokus
+    }
     private final Runnable introCheck = new Runnable() {
         @Override public void run() {
-            if (player == null) return;
+            if (player == null || finished) return;
             long p = player.getCurrentPosition();
-            boolean show = p > 5000 && p < 240000;
-            if (show && skipBtn.getVisibility() != View.VISIBLE) skipBtn.setVisibility(View.VISIBLE);
-            if (!show && skipBtn.getVisibility() == View.VISIBLE) skipBtn.setVisibility(View.GONE);
-            if (p < 240000) ui.postDelayed(this, 1000);
+            boolean show = !introSkipped && p > INTRO_START_MS && p < INTRO_END_MS;
+            if (show) skipBtn.setVisibility(View.VISIBLE); else hideSkipBtn();
+            if (!introSkipped) ui.postDelayed(this, 500);
         }
     };
 
