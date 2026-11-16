@@ -2395,7 +2395,28 @@ function updateFavBtns(){
 
 // ====== UPPSPELNING ======
 function status(t, err){ msg($('status'), $('player').classList.contains('hidden') ? t : '', err); msg($('pstatus'), $('player').classList.contains('hidden') ? '' : t, err); }
+// Återanslutning för livekanaler: nytt försök när strömmen bryts eller fastnar, innan felet visas
+const RETRY_MAX = 4, STALL_MS = 12000, START_MS = 25000;
+let retryN = 0, retryTimer = null, stallTimer = null, okTimer = null;
+function clearRetryTimers(){ clearTimeout(retryTimer); clearTimeout(stallTimer); clearTimeout(okTimer); retryTimer = stallTimer = okTimer = null; }
+const playerOpen = () => !$('player').classList.contains('hidden');
+function watchStall(c, ms){
+  clearTimeout(stallTimer);
+  if (!c || TYPE(c) !== 'live') return;
+  stallTimer = setTimeout(() => { stallTimer = null; if (nowItem === c && playerOpen() && !video.paused) streamFailed('Strömmen stannade. Kanalen kan vara offline.'); }, ms);
+}
+function streamFailed(msg){
+  const c = nowItem;
+  // Android har en inbyggd spelare som tar över (liveFailed byter dit). Film och serier försöker inte om.
+  if (!c || TYPE(c) !== 'live' || !playerOpen() || (NativePlayer && !c._native) || retryN >= RETRY_MAX) { clearRetryTimers(); retryN = 0; liveFailed(msg); return; }
+  if (retryTimer) return;
+  retryN++;
+  clearTimeout(stallTimer); clearTimeout(okTimer);
+  status('Återansluter… (' + retryN + '/' + RETRY_MAX + ')');
+  retryTimer = setTimeout(() => { retryTimer = null; if (nowItem === c && playerOpen()) startStream(c, true); }, Math.min(8000, 1000 * Math.pow(2, retryN - 1)));
+}
 function stop(){
+  clearRetryTimers();
   if (hls) { hls.destroy(); hls = null; }
   if (ts) { try { ts.destroy(); } catch(_) {} ts = null; }
   video.onerror = null;
@@ -2412,10 +2433,12 @@ function play(i){
   saveSettings({ last_channel_url: c.url });
   launch(c);
 }
-function startStream(c){
+function startStream(c, isRetry){
   stop();
+  if (!isRetry) retryN = 0;
   $('now').textContent = c.name;
-  status('Ansluter…');
+  status(isRetry ? 'Återansluter… (' + retryN + '/' + RETRY_MAX + ')' : 'Ansluter…');
+  watchStall(c, START_MS);
   const url = c.url, lower = url.toLowerCase().split('?')[0];
   const isTs = /\.ts$/.test(lower) || /\/live\/[^/]+\/[^/]+\/\d+$/.test(lower) || /:\d+\/[^/.]+\/[^/.]+\/\d+$/.test(lower);
   const nativeHls = !NATIVE && video.canPlayType('application/vnd.apple.mpegurl');
@@ -2423,14 +2446,14 @@ function startStream(c){
   if (NATIVE && !c._fallback) {
     video.src = url;
     video.play().catch(() => {});
-    video.onerror = () => { video.onerror = null; c._fallback = true; startStream(c); };
+    video.onerror = () => { video.onerror = null; c._fallback = true; startStream(c, isRetry); };
     return;
   }
   video.onerror = null;
   if (isTs && window.mpegts && mpegts.isSupported()){
     ts = mpegts.createPlayer({ type: 'mpegts', isLive: (c.type || 'live') === 'live', url });
     ts.attachMediaElement(video); ts.load();
-    ts.on(mpegts.Events.ERROR, () => liveFailed('Kunde inte spela strömmen. Den kan vara offline eller blockera webbläsare.'));
+    ts.on(mpegts.Events.ERROR, () => streamFailed('Kunde inte spela strömmen. Den kan vara offline eller blockera webbläsare.'));
     video.play().catch(() => {});
   } else if (!nativeHls && window.Hls && Hls.isSupported() && !/\.(mp4|webm|mp3|aac)$/.test(lower)){
     hls = new Hls({ enableWorker: true, lowLatencyMode: true });
@@ -2440,20 +2463,26 @@ function startStream(c){
     hls.on(Hls.Events.ERROR, (_, d) => {
       if (!d.fatal) return;
       if (d.type === Hls.ErrorTypes.MEDIA_ERROR) { hls.recoverMediaError(); return; }
-      liveFailed('Kunde inte spela strömmen. Den kan vara offline eller blockera webbläsare.');
+      streamFailed('Kunde inte spela strömmen. Den kan vara offline eller blockera webbläsare.');
     });
   } else {
     video.src = url; video.play().catch(() => {});
   }
 }
-video.addEventListener('playing', () => status(''));
+video.addEventListener('playing', () => {
+  status(''); clearTimeout(stallTimer); stallTimer = null;
+  clearTimeout(okTimer); okTimer = setTimeout(() => { retryN = 0; }, 30000); // stabil bild i 30 s: börja om räkningen
+});
 let lastSave = 0;
 video.addEventListener('timeupdate', () => {
   if (Date.now() - lastSave > 10000) { lastSave = Date.now(); savePos(nowItem); }
   checkNextEpisode();
 });
 video.addEventListener('pause', () => savePos(nowItem));
-video.addEventListener('ended', () => { savePos(nowItem); if (epCtx) startNextEpisode(); });
+video.addEventListener('ended', () => {
+  if (nowItem && TYPE(nowItem) === 'live') { streamFailed('Strömmen tog slut. Kanalen kan vara offline.'); return; } // en livekanal ska inte ta slut
+  savePos(nowItem); if (epCtx) startNextEpisode();
+});
 // Hoppa till sparad position när filmen har laddats
 video.addEventListener('loadedmetadata', () => {
   const q = nowItem && TYPE(nowItem) !== 'live' && pos[nowItem.url];
@@ -2464,8 +2493,8 @@ video.addEventListener('loadedmetadata', () => {
     setTimeout(() => $('pRestart').classList.add('hidden'), 12000);
   }
 });
-video.addEventListener('waiting', () => status('Buffrar…'));
-video.addEventListener('error', () => { if (!hls && !ts && video.getAttribute('src') && !(NATIVE && nowItem && !nowItem._fallback)) liveFailed(ExternalPlayer ? 'Kunde inte spela här. Tryck på ↗ Annan spelare för att öppna i t.ex. VLC.' : 'Kunde inte spela den här strömmen.', true); });
+video.addEventListener('waiting', () => { if (!retryTimer) status('Buffrar…'); clearTimeout(okTimer); watchStall(nowItem, STALL_MS); });
+video.addEventListener('error', () => { if (!hls && !ts && video.getAttribute('src') && !(NATIVE && nowItem && !nowItem._fallback)) streamFailed(ExternalPlayer ? 'Kunde inte spela här. Tryck på ↗ Annan spelare för att öppna i t.ex. VLC.' : 'Kunde inte spela den här strömmen.', true); });
 
 // ====== SPELARVY ======
 let queue = [], nowItem = null, idleTimer = null;
