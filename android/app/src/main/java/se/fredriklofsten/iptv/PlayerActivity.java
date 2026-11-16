@@ -65,6 +65,29 @@ public class PlayerActivity extends AppCompatActivity {
     private int uaIndex = 0;
     private String errorDetail = null;
     private String castError = null;
+    private boolean castViaProxy = true;
+    private int castStartReq = 0;
+    // Vakt: om Chromecast inte kommit igång efter 15 s – prova direktadress, och spara orsaken till felrapporten
+    private final Runnable castWatch = new Runnable() { @Override public void run() {
+        if (castPlayer == null || active != castPlayer) return;
+        int st = castPlayer.getPlaybackState();
+        if (st == Player.STATE_READY || castPlayer.isPlaying()) return;
+        CastProxy px = CastProxy.get();
+        int hits = px.requests - castStartReq;
+        castError = "fastnade state=" + st + " via=" + (castViaProxy ? "telefon" : "direkt") + " proxy=" + px.base() + " anrop=" + hits
+            + (px.lastError != null ? " fel=" + px.lastError : "") + " svar=" + px.lastInfo + " typ=" + mimeFor(curUrl);
+        if (castViaProxy) {
+            castViaProxy = false;
+            showLabel(hits == 0 ? "TV:n når inte telefonen – provar direkt…" : "Provar direkt från leverantören…");
+            MediaItem.Builder b = new MediaItem.Builder().setUri(Uri.parse(curUrl)).setMimeType(mimeFor(curUrl))
+                .setMediaMetadata(new MediaMetadata.Builder().setTitle(curTitle).build());
+            castPlayer.setMediaItem(b.build());
+            castPlayer.prepare(); castPlayer.setPlayWhenReady(true);
+            ui.postDelayed(this, 15000);
+        } else {
+            Toast.makeText(PlayerActivity.this, "Chromecast kunde inte starta strömmen", Toast.LENGTH_LONG).show();
+        }
+    } };
     // Google Cast
     private CastPlayer castPlayer;
     private Player active;
@@ -235,7 +258,8 @@ public class PlayerActivity extends AppCompatActivity {
     private void setupCast(FrameLayout root, boolean openChooser) {
         try {
             CastContext ctx = CastContext.getSharedInstance(this);
-            castPlayer = new CastPlayer(ctx);
+            IptvCastConverter.live = isLive;
+            castPlayer = new CastPlayer(ctx, new IptvCastConverter());
             castPlayer.addListener(new Player.Listener() {
                 @Override public void onPlaybackStateChanged(int state) {
                     if (state == Player.STATE_ENDED && active == castPlayer && !isLive) { ended = true; done(); }
@@ -284,7 +308,11 @@ public class PlayerActivity extends AppCompatActivity {
         target.prepare();
         prev.stop();
         view.setPlayer(target);
-        if (target == castPlayer) { showLabel("📺 Spelas på TV – " + curTitle); view.showController(); }
+        if (target == castPlayer) {
+            showLabel("📺 Spelas på TV – " + curTitle); view.showController();
+            castViaProxy = true; castStartReq = CastProxy.get().requests;
+            ui.removeCallbacks(castWatch); ui.postDelayed(castWatch, 15000);
+        }
         else showLabel("Spelas på telefonen");
     }
 

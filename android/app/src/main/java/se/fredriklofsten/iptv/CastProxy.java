@@ -34,6 +34,9 @@ public class CastProxy {
     private ServerSocket server;
     private String base;
     public volatile String lastError;
+    public volatile int requests = 0;
+    public volatile String lastInfo = "";
+    public String base() { return base; }
     private static final String UA = "VLC/3.0.20 LibVLC/3.0.20";
 
     public static synchronized CastProxy get() {
@@ -97,6 +100,7 @@ public class CastProxy {
     private void handle(Socket s) {
         try (Socket sock = s) {
             sock.setSoTimeout(30000);
+            requests++;
             InputStream in = sock.getInputStream();
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.ISO_8859_1));
             String line = r.readLine();
@@ -144,6 +148,7 @@ public class CastProxy {
             break;
         }
         if (status >= 400) lastError = "leverantören svarade " + status;
+        lastInfo = status + " " + c.getContentType();
         String type = c.getContentType();
         String lower = url.toLowerCase();
         boolean playlist = (type != null && type.toLowerCase().contains("mpegurl")) || lower.contains(".m3u8");
