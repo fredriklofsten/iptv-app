@@ -65,7 +65,21 @@ public class PlayerActivity extends AppCompatActivity {
     private int uaIndex = 0;
     private String errorDetail = null;
     private String castError = null;
-    private boolean castViaProxy = true;
+    private boolean castViaProxy = false;
+    private String mediaFormat = "";
+    private String describeFormats() {
+        if (player == null) return "";
+        androidx.media3.common.Format v = player.getVideoFormat(), a = player.getAudioFormat();
+        return (v != null ? "video=" + v.sampleMimeType + (v.codecs != null ? "(" + v.codecs + ")" : "") + " " + v.width + "x" + v.height : "")
+            + (a != null ? " ljud=" + a.sampleMimeType : "");
+    }
+    private String unsupportedReason() {
+        String f = mediaFormat.toLowerCase();
+        if (f.contains("hevc") || f.contains("hvc1") || f.contains("hev1")) return "videoformatet H.265 (HEVC)";
+        if (f.contains("ac3") || f.contains("eac3") || f.contains("dts")) return "ljudformatet (Dolby/DTS)";
+        if (mimeFor(curUrl).contains("matroska")) return "filformatet MKV";
+        return null;
+    }
     private int castStartReq = 0;
     // Vakt: om Chromecast inte kommit igång efter 15 s – prova direktadress, och spara orsaken till felrapporten
     private final Runnable castWatch = new Runnable() { @Override public void run() {
@@ -74,18 +88,19 @@ public class PlayerActivity extends AppCompatActivity {
         if (st == Player.STATE_READY || castPlayer.isPlaying()) return;
         CastProxy px = CastProxy.get();
         int hits = px.requests - castStartReq;
-        castError = "fastnade state=" + st + " via=" + (castViaProxy ? "telefon" : "direkt") + " proxy=" + px.base() + " anrop=" + hits
-            + (px.lastError != null ? " fel=" + px.lastError : "") + " svar=" + px.lastInfo + " typ=" + mimeFor(curUrl);
-        if (castViaProxy) {
-            castViaProxy = false;
-            showLabel(hits == 0 ? "TV:n når inte telefonen – provar direkt…" : "Provar direkt från leverantören…");
-            MediaItem.Builder b = new MediaItem.Builder().setUri(Uri.parse(curUrl)).setMimeType(mimeFor(curUrl))
-                .setMediaMetadata(new MediaMetadata.Builder().setTitle(curTitle).build());
-            castPlayer.setMediaItem(b.build());
+        castError = (castError != null ? castError + " || " : "") + "fastnade state=" + st + " via=" + (castViaProxy ? "telefon" : "direkt") + " proxy=" + px.base() + " anrop=" + hits
+            + (px.lastError != null ? " fel=" + px.lastError : "") + " svar=" + px.lastInfo + " typ=" + mimeFor(curUrl) + " " + mediaFormat;
+        if (!castViaProxy) {
+            castViaProxy = true;
+            showLabel("Provar via telefonen…");
+            castStartReq = px.requests;
+            long pos = isLive ? 0 : Math.max(0, castPlayer.getCurrentPosition());
+            if (pos > 0) castPlayer.setMediaItem(itemFor(curUrl, curTitle), pos); else castPlayer.setMediaItem(itemFor(curUrl, curTitle));
             castPlayer.prepare(); castPlayer.setPlayWhenReady(true);
-            ui.postDelayed(this, 15000);
+            ui.postDelayed(this, 20000);
         } else {
-            Toast.makeText(PlayerActivity.this, "Chromecast kunde inte starta strömmen", Toast.LENGTH_LONG).show();
+            String why = unsupportedReason();
+            Toast.makeText(PlayerActivity.this, why != null ? "Din Chromecast kan inte spela " + why + ". Den här går bara att se i telefonen eller på en TV med appen." : "Chromecast kunde inte starta strömmen", Toast.LENGTH_LONG).show();
         }
     } };
     // Google Cast
@@ -244,7 +259,7 @@ public class PlayerActivity extends AppCompatActivity {
 
     private MediaItem itemFor(String url, String title) {
         // Till Chromecast går strömmen via telefonen (CastProxy) – löser CORS, blockerad identitet och omdirigeringar
-        String uri = (castPlayer != null && active == castPlayer) ? CastProxy.get().wrap(url) : url;
+        String uri = (castPlayer != null && active == castPlayer && castViaProxy) ? CastProxy.get().wrap(url) : url;
         MediaItem.Builder item = new MediaItem.Builder()
             .setUri(Uri.parse(uri))
             .setMediaMetadata(new MediaMetadata.Builder().setTitle(title).build());
@@ -266,8 +281,10 @@ public class PlayerActivity extends AppCompatActivity {
                 }
                 @Override public void onPlayerError(PlaybackException e) {
                     String pe = CastProxy.get().lastError;
-                    castError = e.getErrorCodeName() + (e.getMessage() != null ? " " + e.getMessage() : "") + (pe != null ? " | proxy: " + pe : "") + " | typ=" + mimeFor(curUrl);
-                    Toast.makeText(PlayerActivity.this, "Chromecast kunde inte spela den här strömmen", Toast.LENGTH_LONG).show();
+                    castError = e.getErrorCodeName() + (e.getMessage() != null ? " " + e.getMessage() : "") + (pe != null ? " | proxy: " + pe : "") + " | typ=" + mimeFor(curUrl) + " " + mediaFormat;
+                    if (!castViaProxy) { ui.removeCallbacks(castWatch); ui.post(castWatch); return; } // prova via telefonen
+                    String why = unsupportedReason();
+                    Toast.makeText(PlayerActivity.this, why != null ? "Din Chromecast kan inte spela " + why + "." : "Chromecast kunde inte spela den här strömmen", Toast.LENGTH_LONG).show();
                     switchTo(player);
                 }
             });
@@ -299,6 +316,7 @@ public class PlayerActivity extends AppCompatActivity {
     private void switchTo(Player target) {
         if (target == null || target == active) return;
         Player prev = active;
+        if (target == castPlayer) { castViaProxy = false; mediaFormat = describeFormats(); }
         long pos = isLive ? C.TIME_UNSET : prev.getCurrentPosition();
         active = target;
         MediaItem item = itemFor(curUrl, curTitle);
@@ -310,7 +328,7 @@ public class PlayerActivity extends AppCompatActivity {
         view.setPlayer(target);
         if (target == castPlayer) {
             showLabel("📺 Spelas på TV – " + curTitle); view.showController();
-            castViaProxy = true; castStartReq = CastProxy.get().requests;
+            castStartReq = CastProxy.get().requests;
             ui.removeCallbacks(castWatch); ui.postDelayed(castWatch, 15000);
         }
         else showLabel("Spelas på telefonen");
@@ -403,7 +421,12 @@ public class PlayerActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         ui.removeCallbacksAndMessages(null);
-        if (castPlayer != null) { castPlayer.setSessionAvailabilityListener(null); castPlayer.release(); castPlayer = null; }
+        if (castPlayer != null) {
+            castPlayer.setSessionAvailabilityListener(null);
+            // CastPlayer.release() avslutar castningen – gör det bara om TV:n inte spelar något från oss
+            if (active != castPlayer || !castPlayer.isCastSessionAvailable()) castPlayer.release();
+            castPlayer = null;
+        }
         if (player != null) { player.release(); player = null; }
     }
 }
