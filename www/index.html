@@ -23,6 +23,9 @@
     if (!Array.prototype.at) Array.prototype.at = function(i){ i = Math.trunc(i) || 0; if (i < 0) i += this.length; return this[i]; };
     if (typeof Promise !== 'undefined' && !Promise.prototype.finally) Promise.prototype.finally = function(f){ var P = this.constructor; return this.then(function(v){ return P.resolve(f()).then(function(){ return v; }); }, function(e){ return P.resolve(f()).then(function(){ throw e; }); }); };
     if (typeof Promise !== 'undefined' && !Promise.allSettled) Promise.allSettled = function(a){ return Promise.all(Array.from(a).map(function(p){ return Promise.resolve(p).then(function(v){ return { status: 'fulfilled', value: v }; }, function(e){ return { status: 'rejected', reason: e }; }); })); };
+    if (!String.prototype.matchAll) String.prototype.matchAll = function(re){ var s = String(this), r = new RegExp(re.source, re.flags.indexOf('g') < 0 ? re.flags + 'g' : re.flags), out = [], m; while ((m = r.exec(s))) { out.push(m); if (m[0] === '') r.lastIndex++; } return out[Symbol.iterator](); };
+    if (!String.prototype.trimStart) String.prototype.trimStart = function(){ return this.replace(/^\s+/, ''); };
+    if (!String.prototype.trimEnd) String.prototype.trimEnd = function(){ return this.replace(/\s+$/, ''); };
     if (!G.queueMicrotask) G.queueMicrotask = function(f){ Promise.resolve().then(f); };
     if (!Math.trunc) Math.trunc = function(x){ return x < 0 ? Math.ceil(x) : Math.floor(x); };
   })();
