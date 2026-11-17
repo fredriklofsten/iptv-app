@@ -1,7 +1,7 @@
-// Gör appen körbar i äldre webbläsare (äldre Android TV, LG, Samsung): översätter ny JS-syntax till Chrome 61-nivå.
+// Gör appen körbar i äldre webbläsare (äldre Android TV, LG, Samsung): översätter ny JS-syntax till Chrome 53-nivå (äldre LG webOS).
 import { transformSync } from 'esbuild';
 import fs from 'node:fs';
-const T = 'chrome61';
+const T = 'chrome53';
 const html = 'www/index.html';
 let s = fs.readFileSync(html, 'utf8');
 s = s.replace(/<script>([\s\S]*?)<\/script>/g, (m, code) => '<script>' + transformSync(code, { target: T, loader: 'js' }).code + '</script>');
