@@ -92,6 +92,14 @@
   body.tv button.card,body.tv button.bt{transition:none;box-shadow:none}
   body.tv button.card:hover,body.tv.kb button.card:focus,.tv .kb button.card:focus{transform:none;box-shadow:none}
   body.tv .hposter,body.tv .detail,body.tv .dinfo img{box-shadow:none}
+  body.tv .overlay{padding:2vh 3vw;align-items:flex-start}
+  body.tv .detail{max-height:94vh}
+  body.tv .dhero{min-height:150px}
+  body.tv .dinfo{padding:14px 24px 10px}
+  body.tv .dinfo img{width:100px}
+  body.tv .dinfo h2{font-size:1.5em}
+  body.tv .dbody{padding:2px 24px 18px}
+  body.tv .dbody p{max-height:5.5em;overflow:hidden;margin:4px 0 10px}
   .card h2{margin:0 0 4px}
   .row{display:flex;gap:8px}.row>*{flex:1}
   .msg{font-size:.9em;color:var(--mute);min-height:1.2em}
@@ -1366,8 +1374,9 @@ function setGroups(){
 function render(){ renderView(); }
 const _rv = () => { lazyImgs(); setTimeout(() => window.watchEpg && watchEpg(), 0); };
 
+let COLL; try { COLL = new Intl.Collator('sv', { numeric: true }); } catch(_) { COLL = { compare: (a, b) => a < b ? -1 : a > b ? 1 : 0 }; }
 function sortList(list, by){
-  const sv = (a, b) => a.name.localeCompare(b.name, 'sv', { numeric: true });
+  const sv = (a, b) => COLL.compare(a.name, b.name);
   const std = (a, b) => idxOf.get(a) - idxOf.get(b);
   const cmp = {
     std, name: sv,
@@ -1396,7 +1405,7 @@ const LAZY_JS = !('loading' in HTMLImageElement.prototype) && 'IntersectionObser
 let lazyObs = null;
 function lazyImgs(){
   if (!LAZY_JS) return;
-  if (!lazyObs) lazyObs = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { lazyObs.unobserve(e.target); const d = e.target.dataset.src; if (d) { e.target.src = d; e.target.removeAttribute('data-src'); } } }), { rootMargin: '600px 600px' });
+  if (!lazyObs) lazyObs = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting || e.intersectionRatio > 0) { lazyObs.unobserve(e.target); const d = e.target.dataset.src; if (d) { e.target.src = d; e.target.removeAttribute('data-src'); } } }), { rootMargin: '600px 600px' });
   document.querySelectorAll('img[data-src]').forEach(i => { if (!i._lz) { i._lz = 1; lazyObs.observe(i); } });
 }
 function card(c){
@@ -2318,7 +2327,7 @@ function openDetail(c){
   $('dSeries').classList.toggle('hidden', !isSeries);
   $('dPlay').textContent = isSeries ? '▶ Spela avsnitt 1' : moviePlayLabel(c);
   openDialog('detail');
-  setTimeout(() => $('dPlay').focus(), 60);
+  setTimeout(() => { $('dPlay').focus(); const dt = document.querySelector('#detail .detail'); if (dt) dt.scrollTop = 0; document.querySelector('#detail')?.scrollTo?.(0, 0); }, 60);
   if (isSeries) loadSeries(c);
   else if (curXt && c.vodId) loadVodInfo(c);
 }
