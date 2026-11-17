@@ -87,6 +87,11 @@
   .center{height:100%;display:flex;align-items:center;justify-content:center;padding:20px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px;width:100%;max-width:380px;display:flex;flex-direction:column;gap:12px}
   body.tv .card{max-width:620px}
+  /* TV: enklare grafik så att svaga TV-processorer hänger med */
+  body.tv .hbg,body.tv .dhero .hbg{filter:none;opacity:.45}
+  body.tv button.card,body.tv button.bt{transition:none;box-shadow:none}
+  body.tv button.card:hover,body.tv.kb button.card:focus,.tv .kb button.card:focus{transform:none;box-shadow:none}
+  body.tv .hposter,body.tv .detail,body.tv .dinfo img{box-shadow:none}
   .card h2{margin:0 0 4px}
   .row{display:flex;gap:8px}.row>*{flex:1}
   .msg{font-size:.9em;color:var(--mute);min-height:1.2em}
@@ -1337,7 +1342,8 @@ function title(c){
   return c._t = t || c.name;
 }
 let view = 'home', byType = { live: [], movie: [], series: [] }, idxOf = new Map();
-const vstate = { live: { cat: '', limit: 200 }, movie: { cat: '', limit: 120, f: newFilter('movie') }, series: { cat: '', limit: 120, f: newFilter('series') }, fav: {}, search: { q: '' }, ppv: { sport: '' }, guide: { cat: '' }, coll: { id: '', sort: 'release' } };
+const PG = IS_TV ? 48 : 120;
+const vstate = { live: { cat: '', limit: IS_TV ? 100 : 200 }, movie: { cat: '', limit: PG, f: newFilter('movie') }, series: { cat: '', limit: PG, f: newFilter('series') }, fav: {}, search: { q: '' }, ppv: { sport: '' }, guide: { cat: '' }, coll: { id: '', sort: 'release' } };
 
 // Anropas när en spellista har lästs in
 function setGroups(){
@@ -1358,7 +1364,7 @@ function setGroups(){
 }
 // Ritar om den aktuella vyn
 function render(){ renderView(); }
-const _rv = () => setTimeout(() => window.watchEpg && watchEpg(), 0);
+const _rv = () => { lazyImgs(); setTimeout(() => window.watchEpg && watchEpg(), 0); };
 
 function sortList(list, by){
   const sv = (a, b) => a.name.localeCompare(b.name, 'sv', { numeric: true });
@@ -1386,10 +1392,17 @@ function metaLine(c){
   return parts.join(' · ');
 }
 
+const LAZY_JS = !('loading' in HTMLImageElement.prototype) && 'IntersectionObserver' in window;
+let lazyObs = null;
+function lazyImgs(){
+  if (!LAZY_JS) return;
+  if (!lazyObs) lazyObs = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { lazyObs.unobserve(e.target); const d = e.target.dataset.src; if (d) { e.target.src = d; e.target.removeAttribute('data-src'); } } }), { rootMargin: '600px 600px' });
+  document.querySelectorAll('img[data-src]').forEach(i => { if (!i._lz) { i._lz = 1; lazyObs.observe(i); } });
+}
 function card(c){
   const live = TYPE(c) === 'live';
   return `<button class="f card ${live ? 'wide' : 'poster'} ${favs.has(c.url) ? 'isfav' : ''}" type="button" data-i="${idxOf.get(c)}" title="${esc(title(c))}">
-    ${c.logo ? `<img src="${esc(c.logo)}" loading="lazy" alt="" onerror="this.remove()">` : ''}
+    ${c.logo ? `<img ${LAZY_JS ? 'data-src' : 'src'}="${esc(c.logo)}" loading="lazy" alt="" onerror="this.remove()">` : ''}
     ${live && c.num ? `<span class="num">${c.num}</span>` : ''}
     ${!live && c.rating ? `<span class="badge">★ ${fmtRating(c.rating)}</span>` : ''}
     ${!live && c.year ? `<span class="yr">${esc(c.year)}</span>` : ''}
@@ -1401,7 +1414,7 @@ function card(c){
 function row(title, items, more){
   if (!items.length) return '';
   return `<section class="lane"><div class="rowhead"><h3>${esc(title)}</h3>${more ? `<button class="f more" type="button" data-more="${esc(more)}">Visa alla ›</button>` : ''}</div>
-    <div class="rowscroll">${items.slice(0, 40).map(card).join('')}</div></section>`;
+    <div class="rowscroll">${items.slice(0, IS_TV ? 20 : 40).map(card).join('')}</div></section>`;
 }
 function grid(items, limit, wide){
   const more = items.length > limit ? `<button class="f ghost loadmore" type="button" data-loadmore="1">Visa fler (${items.length - limit} till)</button>` : '';
@@ -1618,7 +1631,7 @@ $('fsBody').addEventListener('click', e => {
 $('fsBody').addEventListener('change', e => { if (e.target.id === 'fsCat') { fDraft.cat = e.target.value; renderFilterSheet(); } });
 $('fsReset').onclick = () => { const sort = fDraft.sort; fDraft = newFilter(view); fDraft.sort = sort; renderFilterSheet(); };
 $('fsApply').onclick = () => {
-  pushHist(); vstate[view].f = fDraft; vstate[view].limit = 120; store.set('iptv_sort_' + view, fDraft.sort);
+  pushHist(); vstate[view].f = fDraft; vstate[view].limit = PG; store.set('iptv_sort_' + view, fDraft.sort);
   closeDialogs(); renderView(); $('main').scrollTop = 0;
 };
 
@@ -1787,7 +1800,7 @@ $('view').addEventListener('click', e => {
   }
   if (t.dataset.openfilter) { openFilterSheet(); return; }
   if (t.dataset.fclear) { pushHist(); const sort = vstate[view].f.sort; vstate[view].f = newFilter(view); vstate[view].f.sort = sort; renderView(); return; }
-  if (t.dataset.ftog) { pushHist(); const [k, ...rest] = t.dataset.ftog.split('|'); toggleFilter(vstate[view].f, k, rest.join('|')); vstate[view].limit = 120; const y = $('main').scrollTop; renderView(); $('main').scrollTop = Math.min(y, 300); return; }
+  if (t.dataset.ftog) { pushHist(); const [k, ...rest] = t.dataset.ftog.split('|'); toggleFilter(vstate[view].f, k, rest.join('|')); vstate[view].limit = PG; const y = $('main').scrollTop; renderView(); $('main').scrollTop = Math.min(y, 300); return; }
   if (t.dataset.catpick) {
     const st = vstate[view];
     if (st.cat && st.cat !== '__fav') { pushHist(); st.cat = ''; renderView(); return; }
@@ -1795,8 +1808,8 @@ $('view').addEventListener('click', e => {
     $('catList').innerHTML = cats.map(([g, n]) => `<button class="f" type="button" data-pickcat="${esc(g)}">${esc(g)} <small>(${n})</small></button>`).join('');
     openDialog('catDialog'); return;
   }
-  if (t.dataset.cat !== undefined) { pushHist(); vstate[view].cat = t.dataset.cat; vstate[view].limit = view === 'live' ? 200 : 120; renderView(); setTimeout(() => document.querySelector(`.chip.on`)?.focus(), 0); return; }
-  if (t.dataset.loadmore) { vstate[view].limit += view === 'live' ? 200 : 120; const y = $('main').scrollTop; renderView(); $('main').scrollTop = y; return; }
+  if (t.dataset.cat !== undefined) { pushHist(); vstate[view].cat = t.dataset.cat; vstate[view].limit = view === 'live' ? (IS_TV ? 100 : 200) : PG; renderView(); setTimeout(() => document.querySelector(`.chip.on`)?.focus(), 0); return; }
+  if (t.dataset.loadmore) { vstate[view].limit += view === 'live' ? (IS_TV ? 100 : 200) : PG; const y = $('main').scrollTop; renderView(); $('main').scrollTop = y; return; }
   if (t.dataset.play !== undefined) { const c = channels[+t.dataset.play]; lastCard = t; c.seriesId && curXt ? openDetail(c) : play(+t.dataset.play); return; }
   if (t.dataset.info !== undefined) { lastCard = t; openDetail(channels[+t.dataset.info]); return; }
   if (t.dataset.i !== undefined) {
@@ -1811,7 +1824,7 @@ $('view').addEventListener('click', e => {
 });
 $('view').addEventListener('change', e => {
   if (e.target.id === 'collSort') { vstate.coll.sort = e.target.value; renderView(); $('collSort')?.focus(); return; }
-  if (e.target.id === 'catSel') { pushHist(); vstate[view].cat = e.target.value; vstate[view].limit = 120; renderView(); $('catSel')?.focus(); return; }
+  if (e.target.id === 'catSel') { pushHist(); vstate[view].cat = e.target.value; vstate[view].limit = PG; renderView(); $('catSel')?.focus(); return; }
   if (e.target.id === 'sortSel') { store.set('iptv_sort_' + view, e.target.value); renderView(); $('sortSel')?.focus(); }
 });
 $('view').addEventListener('input', e => {
@@ -1964,7 +1977,7 @@ function openUpcoming(){
 
 $('catList').addEventListener('click', e => {
   const b = e.target.closest('[data-pickcat]'); if (!b) return;
-  closeDialogs(); pushHist(); const st = vstate[view]; if (st.f) st.f.cat = b.dataset.pickcat; else st.cat = b.dataset.pickcat; st.limit = 120; renderView();
+  closeDialogs(); pushHist(); const st = vstate[view]; if (st.f) st.f.cat = b.dataset.pickcat; else st.cat = b.dataset.pickcat; st.limit = PG; renderView();
   setTimeout(() => document.querySelector('.chip.on')?.focus(), 0);
 });
 
@@ -2462,7 +2475,8 @@ function startStream(c, isRetry){
   $('now').textContent = c.name;
   status(isRetry ? 'Återansluter… (' + retryN + '/' + RETRY_MAX + ')' : 'Ansluter…');
   watchStall(c, START_MS);
-  const url = c.url, lower = url.toLowerCase().split('?')[0];
+  const vod = TYPE(c) !== 'live';
+  const url = c._m3u8 ? c.url.replace(/\.\w+(\?|$)/, '.m3u8$1') : c.url, lower = url.toLowerCase().split('?')[0];
   const isTs = /\.ts$/.test(lower) || /\/live\/[^/]+\/[^/]+\/\d+$/.test(lower) || /:\d+\/[^/.]+\/[^/.]+\/\d+$/.test(lower);
   const nativeHls = !NATIVE && video.canPlayType('application/vnd.apple.mpegurl');
 
@@ -2478,7 +2492,7 @@ function startStream(c, isRetry){
     ts.attachMediaElement(video); ts.load();
     ts.on(mpegts.Events.ERROR, () => streamFailed('Kunde inte spela strömmen. Den kan vara offline eller blockera webbläsare.'));
     video.play().catch(() => {});
-  } else if (!nativeHls && window.Hls && Hls.isSupported() && !/\.(mp4|webm|mp3|aac)$/.test(lower)){
+  } else if (!nativeHls && window.Hls && Hls.isSupported() && !/\.(mp4|webm|mp3|aac|mkv|avi|mov|m4v)$/.test(lower)){
     hls = new Hls({ enableWorker: true, lowLatencyMode: true });
     hls.loadSource(url); hls.attachMedia(video);
     hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); updateTrackBtn(); });
@@ -2517,7 +2531,11 @@ video.addEventListener('loadedmetadata', () => {
   }
 });
 video.addEventListener('waiting', () => { if (!retryTimer) status('Buffrar…'); clearTimeout(okTimer); watchStall(nowItem, STALL_MS); });
-video.addEventListener('error', () => { if (!hls && !ts && video.getAttribute('src') && !(NATIVE && nowItem && !nowItem._fallback)) streamFailed(ExternalPlayer ? 'Kunde inte spela här. Tryck på ↗ Annan spelare för att öppna i t.ex. VLC.' : 'Kunde inte spela den här strömmen.', true); });
+video.addEventListener('error', () => {
+  const c = nowItem;
+  if (!NATIVE && c && TYPE(c) !== 'live' && !c._m3u8 && !hls && /\.(mkv|avi|mov|ts|m4v)(\?|$)/i.test(c.url)) { c._m3u8 = true; status('Provar annat format…'); startStream(c, true); return; }
+  if (!hls && !ts && video.getAttribute('src') && !(NATIVE && nowItem && !nowItem._fallback)) streamFailed(ExternalPlayer ? 'Kunde inte spela här. Tryck på ↗ Annan spelare för att öppna i t.ex. VLC.' : 'Kunde inte spela den här strömmen.', true);
+});
 
 // ====== SPELARVY ======
 let queue = [], nowItem = null, idleTimer = null;
