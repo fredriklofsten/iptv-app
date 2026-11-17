@@ -15,9 +15,11 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import java.util.ArrayList;
+import java.util.Locale;
 import android.view.WindowManager;
 import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -26,8 +28,12 @@ import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.MimeTypes;
+import androidx.media3.common.Format;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
+import androidx.media3.common.TrackSelectionOverride;
+import androidx.media3.common.TrackSelectionParameters;
+import androidx.media3.common.Tracks;
 import androidx.media3.datasource.DefaultDataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
@@ -107,6 +113,7 @@ public class PlayerActivity extends AppCompatActivity {
     private CastPlayer castPlayer;
     private Player active;
     private MediaRouteButton castBtn;
+    private Button tracksBtn;
     private String curUrl, curTitle;
     private boolean isLive = false;
 
@@ -299,8 +306,17 @@ public class PlayerActivity extends AppCompatActivity {
             FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(dp(52), dp(52), Gravity.TOP | Gravity.END);
             cp.setMargins(0, dp(16), dp(16), 0);
             root.addView(castBtn, cp);
+            // Val av ljudspår och text på Chromecasten (syns bara medan TV:n spelar)
+            tracksBtn = new Button(this);
+            tracksBtn.setText("🎧 Ljud/Text");
+            tracksBtn.setVisibility(View.GONE);
+            tracksBtn.setOnClickListener(v -> showCastTracks());
+            FrameLayout.LayoutParams tp = new FrameLayout.LayoutParams(-2, dp(52), Gravity.TOP | Gravity.END);
+            tp.setMargins(0, dp(16), dp(76), 0);
+            root.addView(tracksBtn, tp);
             view.setControllerVisibilityListener((PlayerView.ControllerVisibilityListener) vis -> {
                 castBtn.setVisibility(active == castPlayer ? View.VISIBLE : vis);
+                tracksBtn.setVisibility(active == castPlayer ? vis : View.GONE);
                 if (zapBox != null) zapBox.setVisibility(vis);
             });
             if (castPlayer.isCastSessionAvailable()) switchTo(castPlayer);
@@ -331,7 +347,60 @@ public class PlayerActivity extends AppCompatActivity {
             castStartReq = CastProxy.get().requests;
             ui.removeCallbacks(castWatch); ui.postDelayed(castWatch, 15000);
         }
-        else showLabel("Spelas på telefonen");
+        else { showLabel("Spelas på telefonen"); if (tracksBtn != null) tracksBtn.setVisibility(View.GONE); }
+    }
+
+    // Lista ljudspår och undertexter som Chromecasten rapporterar och låt användaren välja
+    private void showCastTracks() {
+        if (castPlayer == null || active != castPlayer) return;
+        ArrayList<Tracks.Group> groups = new ArrayList<>();
+        ArrayList<Integer> idx = new ArrayList<>();
+        ArrayList<String> names = new ArrayList<>();
+        boolean textOn = false, hasText = false;
+        for (int pass = 0; pass < 2; pass++) {
+            int type = pass == 0 ? C.TRACK_TYPE_AUDIO : C.TRACK_TYPE_TEXT;
+            for (Tracks.Group g : castPlayer.getCurrentTracks().getGroups()) {
+                if (g.getType() != type) continue;
+                for (int i = 0; i < g.length; i++) {
+                    boolean sel = g.isTrackSelected(i);
+                    if (type == C.TRACK_TYPE_TEXT) { hasText = true; if (sel) textOn = true; }
+                    groups.add(g); idx.add(i);
+                    names.add((type == C.TRACK_TYPE_AUDIO ? "🔊 " : "💬 ") + trackName(g.getTrackFormat(i), i) + (sel ? "  ✓" : ""));
+                }
+            }
+        }
+        if (groups.isEmpty()) {
+            Toast.makeText(this, "Chromecasten visar inga valbara ljud- eller textspår i den här strömmen", Toast.LENGTH_LONG).show();
+            return;
+        }
+        final int textOffIndex = hasText ? names.size() : -1;
+        if (hasText) { groups.add(null); idx.add(-1); names.add("💬 Text av" + (textOn ? "" : "  ✓")); }
+        new AlertDialog.Builder(this)
+            .setTitle("Ljud och text på TV:n")
+            .setItems(names.toArray(new String[0]), (d, which) -> {
+                if (castPlayer == null) return;
+                TrackSelectionParameters.Builder b = castPlayer.getTrackSelectionParameters().buildUpon();
+                if (which == textOffIndex) {
+                    b.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true);
+                } else {
+                    Tracks.Group g = groups.get(which);
+                    b.setOverrideForType(new TrackSelectionOverride(g.getMediaTrackGroup(), idx.get(which)));
+                    if (g.getType() == C.TRACK_TYPE_TEXT) b.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false);
+                }
+                castPlayer.setTrackSelectionParameters(b.build());
+            })
+            .setNegativeButton("Stäng", null)
+            .show();
+    }
+
+    private String trackName(Format f, int i) {
+        if (f.label != null && !f.label.isEmpty()) return f.label;
+        if (f.language != null && !f.language.isEmpty() && !"und".equals(f.language)) {
+            String n = Locale.forLanguageTag(f.language).getDisplayLanguage(new Locale("sv"));
+            if (n != null && !n.isEmpty()) return n.substring(0, 1).toUpperCase(new Locale("sv")) + n.substring(1);
+            return f.language;
+        }
+        return "Spår " + (i + 1);
     }
 
     private int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }

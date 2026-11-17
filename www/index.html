@@ -539,7 +539,7 @@
     <div class="msg">Undertexter</div><div id="subList" class="eplist"></div>
     <div class="msg" id="trackMsg"></div>
     <button class="f ghost hidden" type="button" id="trackExt">↗ Öppna i VLC / annan spelare</button>
-    <button class="f" type="button" data-close>Klar</button>
+    <button class="f" type="button" id="trackDone" data-close>Klar</button>
   </div>
 </div>
 
@@ -667,6 +667,9 @@
     <div class="row" id="rLive">
       <button class="f ghost" type="button" data-r="ch" data-v="-1">▲ Kanal</button>
       <button class="f ghost" type="button" data-r="ch" data-v="1">▼ Kanal</button>
+    </div>
+    <div class="row">
+      <button class="f ghost" type="button" id="rTracks">🎧 Ljud/Text</button>
     </div>
     <div class="row">
       <button class="f ghost" type="button" data-r="stop">⏹ Stoppa på TV:n</button>
@@ -2615,19 +2618,55 @@ function trackInfo(){
   }
   return { audio, subs };
 }
-function updateTrackBtn(){ const t = trackInfo(); $('pTracks').classList.toggle('hidden', TYPE(nowItem || {}) === 'live' && t.audio.length < 2 && !t.subs.length); }
+// Spår på en Chromecast som styrs från webbläsaren
+function ccMedia(){ try { return window.cast?.framework?.CastContext.getInstance().getCurrentSession()?.getMediaSession() || null; } catch(_) { return null; } }
+function langName(code){
+  if (!code) return '';
+  try { const n = new Intl.DisplayNames(['sv'], { type: 'language' }).of(code); if (n && n !== code) return n.charAt(0).toUpperCase() + n.slice(1); } catch(_) {}
+  return String(code).toUpperCase();
+}
+function ccTrackInfo(){
+  const ms = ccMedia(), all = ms?.media?.tracks || [], act = new Set(ms?.activeTrackIds || []);
+  const apply = ids => ms.editTracksInfo(new chrome.cast.media.EditTracksInfoRequest(ids), () => setTimeout(openTracks, 300), () => status('Chromecasten kunde inte byta spår.', true));
+  const make = (type, what) => {
+    const tr = all.filter(t => t.type === type), same = new Set(tr.map(t => t.trackId));
+    const rest = () => [...act].filter(id => !same.has(id));
+    const list = tr.map((t, i) => ({ name: t.name || langName(t.language) || what + ' ' + (i + 1), on: act.has(t.trackId), set: () => apply(rest().concat(t.trackId)) }));
+    return { list, rest, has: tr.length > 0, anyOn: tr.some(t => act.has(t.trackId)) };
+  };
+  const a = make('AUDIO', 'Spår'), t = make('TEXT', 'Text');
+  const subs = t.list.slice();
+  if (t.has) subs.unshift({ name: 'Av', on: !t.anyOn, set: () => apply(t.rest()) });
+  return { audio: a.list, subs };
+}
+// Spår på TV:n när man castar till IPTV-appen på en annan enhet (listan kommer från TV:n)
+function tvTrackInfo(){
+  const t = remoteTracks || { audio: [], subs: [] };
+  const mk = kind => (t[kind] || []).map((x, i) => ({ name: x.name, on: x.on, set: () => {
+    (t[kind] || []).forEach((y, j) => { y.on = j === i; });
+    sendCast('cmd', { to: castTarget, action: 'track', kind, i });
+  } }));
+  return { audio: mk('audio'), subs: mk('subs') };
+}
+let trackMode = null; // null = den här enheten, 'cc' = Chromecast från webbläsaren, 'tv' = TV med IPTV-appen
+function updateTrackBtn(){ const t = trackInfo(); $('pTracks').classList.toggle('hidden', !ccMedia() && TYPE(nowItem || {}) === 'live' && t.audio.length < 2 && !t.subs.length); }
 function openTracks(){
-  const t = trackInfo(), list = (arr, id) => { $(id).innerHTML = arr.length ? arr.map((x, i) => `<button class="f ${x.on ? 'on' : ''}" type="button" data-t="${i}">${x.on ? '✓ ' : ''}${esc(x.name)}</button>`).join('') : '<div class="msg">Inga att välja</div>';
+  const t = trackMode === 'tv' ? tvTrackInfo() : trackMode === 'cc' ? ccTrackInfo() : trackInfo(), list = (arr, id) => { $(id).innerHTML = arr.length ? arr.map((x, i) => `<button class="f ${x.on ? 'on' : ''}" type="button" data-t="${i}">${x.on ? '✓ ' : ''}${esc(x.name)}</button>`).join('') : '<div class="msg">Inga att välja</div>';
     $(id).onclick = e => { const b = e.target.closest('[data-t]'); if (b) { arr[+b.dataset.t].set(); setTimeout(openTracks, 150); } }; };
   list(t.audio, 'audioList'); list(t.subs, 'subList');
   const none = !t.audio.length && !t.subs.length;
-  msg($('trackMsg'), none
+  if (trackMode === 'tv') msg($('trackMsg'), none ? (remoteTracks ? 'TV:n hittar inga valbara spår i den här strömmen.' : 'Hämtar ljud och undertexter från TV:n…') : 'Valet gäller på TV:n.');
+  else if (trackMode === 'cc') msg($('trackMsg'), none ? 'Chromecasten visar inga valbara spår i den här strömmen (än). Vänta några sekunder och försök igen.' : 'Valet gäller på Chromecasten.');
+  else msg($('trackMsg'), none
     ? (ExternalPlayer ? 'Den inbyggda spelaren kan inte visa spåren i den här filen. Öppna den i VLC (gratis) för att välja ljud och undertexter.' : 'Inga valbara spår hittades i den här strömmen.')
     : (ExternalPlayer ? 'Saknas språket du vill ha? VLC visar alla spår som finns i filen.' : ''));
-  $('trackExt').classList.toggle('hidden', !ExternalPlayer);
+  $('trackExt').classList.toggle('hidden', !ExternalPlayer || !!trackMode);
+  // När man styr en TV: "Klar" går tillbaka till fjärrkontrollen
+  $('trackDone').textContent = trackMode === 'tv' ? '← Tillbaka' : 'Klar';
+  $('trackDone').onclick = trackMode === 'tv' ? e => { e.stopPropagation(); trackMode = null; openDialog('remoteDialog'); } : null;
   if ($('trackDialog').classList.contains('hidden')) openDialog('trackDialog');
 }
-$('pTracks').onclick = openTracks;
+$('pTracks').onclick = () => { trackMode = ccMedia() ? 'cc' : null; openTracks(); };
 video.addEventListener('loadedmetadata', updateTrackBtn);
 video.textTracks?.addEventListener?.('addtrack', updateTrackBtn);
 async function openExternal(item){
@@ -2955,7 +2994,7 @@ async function chromecast(item){
     info.streamType = TYPE(nowItemC) === 'live' ? chrome.cast.media.StreamType.LIVE : chrome.cast.media.StreamType.BUFFERED;
     const req = new chrome.cast.media.LoadRequest(info); req.currentTime = TYPE(nowItemC) === 'live' ? 0 : video.currentTime || 0;
     await ctx.getCurrentSession().loadMedia(req);
-    video.pause(); status('📡 Spelas på ' + ctx.getCurrentSession().getCastDevice().friendlyName);
+    video.pause(); status('📡 Spelas på ' + ctx.getCurrentSession().getCastDevice().friendlyName); updateTrackBtn();
   } catch (e) { if (e !== 'cancel') status('Chromecast kunde inte spela den här strömmen. Servern kan blockera det.', true); }
 }
 
@@ -2970,7 +3009,7 @@ function deviceName(){
   if (/Android|iPhone|iPad/i.test(u)) return NATIVE ? 'Mobil (app)' : 'Mobil (webb)';
   return 'Dator';
 }
-let castCh = null, devices = {}, pendingCast = null, castTarget = null, castLive = false;
+let castCh = null, devices = {}, pendingCast = null, castTarget = null, castLive = false, remoteTracks = null;
 function castSubscribe(){
   castUnsub();
   castCh = sb.channel('cast-' + user.id, { config: { presence: { key: deviceId }, broadcast: { self: false } } });
@@ -3006,7 +3045,7 @@ function castTo(item){
   const to = pendingCast; pendingCast = null; if (!to || !item) return;
   if (to === 'ext') { closeDialogs(); openExternal(item); return; }
   if (to === 'cc') { closeDialogs(); if (NativePlayer) runNative(item, { cast: true }); else chromecast(item); return; }
-  castTarget = to; castLive = TYPE(item) === 'live';
+  castTarget = to; castLive = TYPE(item) === 'live'; remoteTracks = null;
   sendCast('cmd', { to, action: 'play', item: { name: item.name, url: item.url, type: item.type, logo: item.logo } });
   if (!$('player').classList.contains('hidden')) { stop(); exitFs(); $('player').classList.add('hidden'); }
   $('rTitle').textContent = 'Spelas på ' + (devices[to]?.name || 'TV');
@@ -3020,6 +3059,7 @@ $('remoteDialog').addEventListener('click', e => {
   sendCast('cmd', { to: castTarget, action: b.dataset.r, v: +b.dataset.v || 0 });
   if (b.dataset.r === 'stop') closeDialogs();
 });
+$('rTracks').onclick = () => { if (!castTarget) return; trackMode = 'tv'; sendCast('cmd', { to: castTarget, action: 'tracks' }); openTracks(); };
 // Mottagare (TV:n)
 function onCastCmd(p){
   if (p.action === 'play') {
@@ -3032,10 +3072,15 @@ function onCastCmd(p){
   else if (p.action === 'stop') { if (!$('player').classList.contains('hidden')) closePlayer(); }
   else if (p.action === 'ch') step(p.v);
   else if (p.action === 'seek') { video.currentTime = Math.max(0, video.currentTime + p.v); wake(); }
-  setTimeout(() => sendCast('state', { to: p.from, name: nowItem?.name || '', paused: video.paused,
-    playing: !$('player').classList.contains('hidden') }), 600);
+  else if (p.action === 'track') { try { trackInfo()[p.kind === 'audio' ? 'audio' : 'subs'][p.i]?.set(); } catch(_) {} }
+  setTimeout(() => {
+    const tk = trackInfo(), slim = arr => arr.map(x => ({ name: x.name, on: !!x.on }));
+    sendCast('state', { to: p.from, name: nowItem?.name || '', paused: video.paused,
+      playing: !$('player').classList.contains('hidden'), tracks: { audio: slim(tk.audio), subs: slim(tk.subs) } });
+  }, p.action === 'track' ? 300 : 600);
 }
 function onCastState(p){
+  if (p.tracks) { remoteTracks = p.tracks; if (trackMode === 'tv' && !$('trackDialog').classList.contains('hidden')) openTracks(); }
   if (!p.playing) { $('rNow').textContent = 'Inget spelas just nu'; return; }
   $('rNow').textContent = p.name; $('rToggle').textContent = p.paused ? '▶ Spela' : '⏯ Paus';
 }
