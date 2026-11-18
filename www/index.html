@@ -207,15 +207,15 @@
   .nav span{margin-right:6px}
   .nav.on{color:#fff;font-weight:700;background:rgba(255,255,255,.08)}
   .iconbtn{background:rgba(255,255,255,.08);border:0;color:#fff;border-radius:6px;padding:.45em .8em}
-  .main{flex:1;overflow-y:auto;overflow-x:hidden;position:relative}
+  .main{flex:1;overflow-y:auto;overflow-x:hidden;position:relative;scroll-padding-top:110px;scroll-padding-bottom:30px}
   #view{padding-bottom:40px}
   .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1d1f27;padding:.6em 1em;border-radius:8px;z-index:6;max-width:90vw}
   .toast:empty{display:none}
 
   .hero{position:relative;height:62vh;min-height:320px;display:flex;align-items:flex-end;overflow:hidden}
-  .hbg{position:absolute;inset:-30px;background-size:cover;background-position:center;filter:blur(18px) brightness(.55);transform:scale(1.08)}
+  .hbg{position:absolute;top:-30px;left:-30px;right:-30px;bottom:-30px;background-size:cover;background-position:center;filter:blur(18px) brightness(.55);transform:scale(1.08)}
   .hposter{position:absolute;right:6%;bottom:12%;height:70%;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
-  .hgrad{position:absolute;inset:0;background:linear-gradient(90deg,rgba(11,11,15,.95) 0%,rgba(11,11,15,.5) 45%,rgba(11,11,15,0) 70%),linear-gradient(0deg,#0b0b0f 0%,rgba(11,11,15,0) 35%)}
+  .hgrad{position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(90deg,rgba(11,11,15,.95) 0%,rgba(11,11,15,.5) 45%,rgba(11,11,15,0) 70%),linear-gradient(0deg,#0b0b0f 0%,rgba(11,11,15,0) 35%)}
   .hinfo{position:relative;padding:0 4% 5%;max-width:640px}
   .hinfo h1{font-size:2.6em;margin:0 0 .2em;line-height:1.1;text-shadow:0 2px 12px rgba(0,0,0,.6)}
   .hmeta{color:#cfd3dc;margin-bottom:1em}
@@ -243,9 +243,11 @@
   .grid.wide{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
   button.card{position:relative;flex-shrink:0;padding:0;border:0;border-radius:6px;overflow:hidden;background:#1c1d24;color:#fff;text-align:left;transition:transform .15s ease, box-shadow .15s ease}
   button.card.poster{width:150px;aspect-ratio:2/3}
+  button.card.poster::before{content:'';display:block;padding-top:150%}
   button.card.wide{width:220px;aspect-ratio:16/10;background:linear-gradient(135deg,#1e2230,#15161c)}
+  button.card.wide::before{content:'';display:block;padding-top:62.5%}
   .grid button.card{width:auto}
-  button.card img{width:100%;height:100%;object-fit:cover;display:block}
+  button.card img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;display:block}
   button.card.wide img{object-fit:contain;padding:14% 18% 26%}
   .ctitle{position:absolute;left:0;right:0;bottom:0;padding:22px 8px 7px;font-size:.82em;font-weight:600;background:linear-gradient(0deg,rgba(0,0,0,.9),rgba(0,0,0,0));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   button.card .badge{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.7);font-size:.72em;padding:2px 6px;border-radius:4px}
@@ -266,8 +268,8 @@
   .detail{width:min(920px,100%);max-height:94vh;overflow:auto;background:#16171c;border-radius:10px;box-shadow:0 30px 80px rgba(0,0,0,.7)}
   .dhero{position:relative;min-height:340px;display:flex;align-items:flex-end;overflow:hidden}
   .dhero .hbg{filter:blur(10px) brightness(.6)}
-  .dhero.backdrop .hbg{filter:brightness(.75);inset:0;transform:none}
-  .dgrad{position:absolute;inset:0;background:linear-gradient(0deg,#16171c 4%,rgba(22,23,28,.4) 60%,rgba(22,23,28,.1))}
+  .dhero.backdrop .hbg{filter:brightness(.75);top:0;left:0;right:0;bottom:0;transform:none}
+  .dgrad{position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(0deg,#16171c 4%,rgba(22,23,28,.4) 60%,rgba(22,23,28,.1))}
   .dinfo{position:relative;padding:24px 28px 16px;display:flex;gap:20px;align-items:flex-end}
   .dinfo img{width:130px;border-radius:6px;box-shadow:0 10px 30px rgba(0,0,0,.6)}
   .dinfo h2{margin:0 0 6px;font-size:2em;line-height:1.1}
@@ -282,7 +284,7 @@
   .player{background:#000;padding:0;display:block;z-index:20}
   .overlay:not(.player){z-index:25} /* rutor ska ligga ovanpå spelaren */
   .updbar{z-index:30!important}
-  .player video{position:absolute;inset:0;width:100%;height:100%;background:#000;border-radius:0}
+  .player video{position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100%;background:#000;border-radius:0}
   .pbar{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:10px;padding:14px 3%;background:linear-gradient(180deg,rgba(0,0,0,.85),rgba(0,0,0,0));transition:opacity .3s}
   .player.idle .pbar{opacity:0;pointer-events:none}
   .player.idle{cursor:none}
@@ -386,7 +388,7 @@
   }
 
   /* Dialoger */
-  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
+  .overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
   .overlay button.card{max-height:90vh;overflow:auto}
   .plrow{display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--line);padding:6px 0}
   .plrow span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -3165,13 +3167,34 @@ function focusables(){
   const scope = openDialogEl() || document.querySelector('#loginView:not(.hidden), #codeView:not(.hidden), #app:not(.hidden)');
   return scope ? [...scope.querySelectorAll('.f')].filter(el => el.offsetParent !== null && !el.disabled) : [];
 }
+// Håller det fokuserade kortet synligt under toppfältet (fungerar även på äldre TV-webbläsare)
+function reveal(el, center){
+  try {
+    const m = $('main'); if (!m || !m.contains(el)) return;
+    const rs = el.parentElement;
+    if (rs && rs.classList.contains('rowscroll')) {
+      const pr = rs.getBoundingClientRect(), r0 = el.getBoundingClientRect(), pad = pr.width * 0.06;
+      if (r0.left < pr.left + pad) rs.scrollLeft += r0.left - pr.left - pad;
+      else if (r0.right > pr.right - pad) rs.scrollLeft += r0.right - pr.right + pad;
+    }
+    const mr = m.getBoundingClientRect(), r = el.getBoundingClientRect();
+    const navH = ($('topnav') && $('topnav').offsetHeight) || 70;
+    const minTop = mr.top + navH + 16, maxBottom = mr.bottom - 24;
+    if (center) m.scrollTop += (r.top + r.height / 2) - (minTop + (maxBottom - minTop) / 2);
+    else if (r.top < minTop) m.scrollTop += r.top - minTop;
+    else if (r.bottom > maxBottom) m.scrollTop += r.bottom - maxBottom;
+    // om kortet fortfarande ligger under toppfältet (överst i listan), visa raden med rubrik
+    const r2 = el.getBoundingClientRect();
+    if (r2.top < minTop) m.scrollTop += r2.top - minTop;
+  } catch(_) { try { el.scrollIntoView({ block: 'center' }); } catch(__) {} }
+}
 function moveFocus(dir){
   const cur = document.activeElement, all = focusables();
   if (!all.includes(cur)) { (all.find(el => el.classList.contains('card')) || all[0])?.focus(); return; }
   // I en rad: vänster/höger går direkt till grannkortet
   if (cur.classList.contains('card') && cur.parentElement.classList.contains('rowscroll') && (dir === 'left' || dir === 'right')) {
     const nxt = dir === 'right' ? cur.nextElementSibling : cur.previousElementSibling;
-    if (nxt) { nxt.focus({ preventScroll: true }); nxt.scrollIntoView({ block: 'nearest', inline: 'nearest' }); return; }
+    if (nxt) { nxt.focus({ preventScroll: true }); reveal(nxt, false); return; }
     return;
   }
   const a = cur.getBoundingClientRect(), ax = a.left + a.width / 2, ay = a.top + a.height / 2;
@@ -3192,7 +3215,7 @@ function moveFocus(dir){
     const score = main + cross * 2 + offscreen + penalty;
     if (score < bestScore) { bestScore = score; best = el; }
   }
-  if (best) { best.focus({ preventScroll: true }); best.scrollIntoView({ block: dir === 'up' || dir === 'down' ? 'center' : 'nearest', inline: 'nearest' }); }
+  if (best) { best.focus({ preventScroll: true }); reveal(best, dir === 'up' || dir === 'down'); }
 }
 
 // Fokusramen visas på TV alltid, annars bara när man styr med tangenter/fjärrkontroll (inte vid tryck med finger)
