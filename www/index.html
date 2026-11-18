@@ -789,8 +789,23 @@ if (!window.supabase) {
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const WEB_URL = 'https://fredriklofsten.github.io/iptv-app/';
 if (/type=signup|#bekraftad/.test(location.hash)) setTimeout(() => { const m = $('loginMsg'); if (m) msg(m, '✅ Kontot är bekräftat! Logga in i appen på telefonen eller TV:n.'); }, 300);
-const IS_TV = /Web0S|webOS|Tizen|Smart[- ]?TV|Android TV|AFT[A-Z]|BRAVIA|GoogleTV|CrKey/i.test(navigator.userAgent) || location.hash === '#tv';
+// TV-igenkänning: TV-märken i webbläsarens identitet, eller Android-appen på en skärm utan pekskärm och mus
+// (TCL, Hisense, Philips, Sony, Xiaomi m.fl. med Google TV/Android TV skriver ofta inte "TV" i identiteten)
+const TV_UA = /Web0S|webOS|Tizen|Smart[- ]?TV|SmartTV|Android ?TV|AndroidTV|GoogleTV|Google TV|AFT[A-Z]|BRAVIA|CrKey|Chromecast|SHIELD Android TV|MiTV|MIBOX|VIDAA|NetCast|Viera|HbbTV|TitanOS|Roku|Vestel|TPM\d{3}|BeyondTV/i;
+const IS_TV = TV_UA.test(navigator.userAgent) || location.hash === '#tv' || (() => {
+  try { return !!window.Capacitor && navigator.maxTouchPoints === 0 && !matchMedia('(any-pointer:fine)').matches && !matchMedia('(any-pointer:coarse)').matches; } catch(_) { return false; }
+})();
 if (IS_TV) document.body.classList.add('tv');
+// Samma storlek på alla TV-apparater: Android-TV (TCL, Sony m.fl.) ritar ofta i 960×540 eller 1280×720 i stället för 1920×1080,
+// vilket gjorde allt dubbelt så stort. Vi ritar alltid i 1920 bredd och låter TV:n skala ner bilden.
+function fitTv(){
+  if (!IS_TV) return;
+  const w = Math.max(screen.width || 0, window.innerWidth || 0);
+  if (w >= 1800) return;
+  const m = document.querySelector('meta[name=viewport]');
+  if (m && !/width=1920/.test(m.content)) m.setAttribute('content', 'width=1920, user-scalable=no');
+}
+fitTv();
 const IS_LG = /Web0S|webOS/i.test(navigator.userAgent);
 if (IS_LG) {
   document.body.classList.add('lg');
@@ -2742,6 +2757,12 @@ async function runNative(c, opts = {}){
   if (r.castError) reportError('cast', r.castError, { type: TYPE(c), url: c.url, name: c.name });
   if (r.error) {
     reportError('player', r.error, { type: TYPE(c), url: c.url, name: c.name, detail: r.errorDetail || '' });
+    // Leverantören svarade "nej" (t.ex. kod 400/403/509): oftast för många skärmar samtidigt – en annan spelare hjälper inte
+    const code = (/Response code: (\d{3})/.exec(r.errorDetail || '') || [])[1];
+    if (code && /^(4|5)/.test(code)) {
+      status('Din IPTV-leverantör nekade uppspelningen (kod ' + code + '). Oftast betyder det att kontot redan används på en annan TV eller mobil – stäng den och försök igen om en minut.', true);
+      return;
+    }
     if (ExternalPlayer) { status('Den inbyggda spelaren klarade inte den här. Öppnar i annan spelare…'); setTimeout(() => status(''), 4000); openExternal(c); }
     else status('Kunde inte spela (' + r.error + ').', true);
     return;
@@ -3027,7 +3048,15 @@ function deviceName(){
   if (/Web0S|webOS/i.test(u)) return 'LG-TV';
   if (/Tizen/i.test(u)) return 'Samsung-TV';
   if (/AFT[A-Z]/.test(u)) return 'Fire TV';
-  if (/Android TV|GoogleTV|BRAVIA|CrKey/i.test(u) || IS_TV) return 'Android-TV';
+  if (IS_TV && /TCL|Smart TV Pro/i.test(u)) return 'TCL-TV';
+  if (IS_TV && /Hisense|VIDAA/i.test(u)) return 'Hisense-TV';
+  if (/BRAVIA/i.test(u)) return 'Sony-TV';
+  if (IS_TV && /Philips|TitanOS|TPM\d{3}/i.test(u)) return 'Philips-TV';
+  if (IS_TV && /Viera|Panasonic/i.test(u)) return 'Panasonic-TV';
+  if (/MiTV|MIBOX/i.test(u)) return 'Xiaomi-TV';
+  if (/SHIELD/i.test(u)) return 'Nvidia Shield';
+  if (/CrKey|Chromecast/i.test(u)) return 'Chromecast';
+  if (/Android ?TV|GoogleTV|Google TV/i.test(u) || IS_TV) return 'Android-TV';
   if (/Android|iPhone|iPad/i.test(u)) return NATIVE ? 'Mobil (app)' : 'Mobil (webb)';
   return 'Dator';
 }
