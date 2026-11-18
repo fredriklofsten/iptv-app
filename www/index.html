@@ -325,6 +325,19 @@
   body.tv button.card.wide{width:290px}
   body.tv .grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
 
+  /* LG webOS (Chrome 53): saknar aspect-ratio, grid och flex-gap – fasta mått i stället */
+  body.lg button.card.poster{width:200px;height:300px}
+  body.lg button.card.wide{width:290px;height:181px}
+  body.lg button.card::before{display:none}
+  body.lg .rowscroll button.card{margin-right:10px}
+  body.lg .grid{display:flex;flex-wrap:wrap}
+  body.lg .grid button.card{margin:0 12px 12px 0}
+  body.lg .grid button.card.poster{width:200px}
+  body.lg .grid button.card.wide{width:290px}
+  body.lg .player{position:fixed;top:0;left:0;width:100%;height:100%;background:#000}
+  body.lg .player video{width:100%;height:100%}
+  body.lg.playing #app{visibility:hidden}
+
   @media (max-width:760px){
     #topnav{padding:10px 4%}
     .navtabs{position:fixed;left:0;right:0;bottom:0;background:#121318;border-top:1px solid #23252e;justify-content:space-around;padding:4px 2px calc(4px + env(safe-area-inset-bottom));z-index:8;gap:0}
@@ -778,6 +791,13 @@ const WEB_URL = 'https://fredriklofsten.github.io/iptv-app/';
 if (/type=signup|#bekraftad/.test(location.hash)) setTimeout(() => { const m = $('loginMsg'); if (m) msg(m, '✅ Kontot är bekräftat! Logga in i appen på telefonen eller TV:n.'); }, 300);
 const IS_TV = /Web0S|webOS|Tizen|Smart[- ]?TV|Android TV|AFT[A-Z]|BRAVIA|GoogleTV|CrKey/i.test(navigator.userAgent) || location.hash === '#tv';
 if (IS_TV) document.body.classList.add('tv');
+const IS_LG = /Web0S|webOS/i.test(navigator.userAgent);
+if (IS_LG) {
+  document.body.classList.add('lg');
+  // Dölj allt bakom spelaren så att inga rader syns runt filmen
+  try { const pl = document.getElementById('player'); const upd = () => document.body.classList.toggle('playing', !pl.classList.contains('hidden'));
+        new MutationObserver(upd).observe(pl, { attributes: true, attributeFilter: ['class'] }); upd(); } catch(_) {}
+}
 
 let curXt = null;
 let user = null, playlists = [], channels = [], shown = [], current = -1;
